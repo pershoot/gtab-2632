@@ -21,6 +21,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#define NV_DEBUG 0
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -31,12 +32,17 @@
 #include <linux/platform_device.h>
 #include "nvodm_pmu.h"
 
-#define PMU_IOCTL_ENABLE  1
 
 #define SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC  (1)
 
 /* Create a custom rtc structrue and move this to that structure */
 static NvOdmPmuDeviceHandle hPmu = NULL;
+static struct platform_device *tegra_rtc_pdev = NULL;
+
+static int tegra_rtc_ioctl(struct device *dev, unsigned int cmd, unsigned long arg)
+{
+	return -ENOIOCTLCMD;
+}
 
 #if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
 extern int internal_tegra_rtc_read_time(struct rtc_time *tm);
@@ -104,7 +110,6 @@ static int tegra_rtc_set_time(struct device *dev, struct rtc_time *tm)
 #endif
 }
 
-#if (PMU_IOCTL_ENABLE)
 static int tegra_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 {
 
@@ -130,9 +135,14 @@ static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	NvU32 alarm_sec;
 	struct rtc_time now_time;
 
+	printk("%s(): wkalrm->enabled=%d\n", __func__, wkalrm?wkalrm->enabled:-1);
+
 	pr_debug("wkalrm->enabled = %d\n", wkalrm->enabled);
-	if (wkalrm->enabled == 0)
+	if (wkalrm->enabled == 0) {
+		if(!NvOdmPmuWriteAlarm(hPmu, 0))
+			return -EINVAL;
 		return 0;
+	}
 
 	if (!NvOdmPmuReadRtc(hPmu, &now)) {
 		pr_debug("NvOdmPmuReadRtc failed\n");
@@ -156,7 +166,7 @@ static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 
 	pr_debug("alarm_sec = %u\n", alarm_sec);
 
-	if(!NvOdmPmuWriteAlarm(hPmu, alarm_sec-now))
+	if(!NvOdmPmuWriteAlarm(hPmu, alarm_sec))
 		return -EINVAL;
 
 #if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
@@ -165,15 +175,38 @@ static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	return 0;
 #endif
 }
-#endif
+
+static NvBool tegra_rtc_alarm_interrupt(NvOdmPmuDeviceHandle hPmu) {
+	unsigned long events = 0;
+	struct rtc_device *rtc;
+
+	rtc = tegra_rtc_pdev ? platform_get_drvdata(tegra_rtc_pdev) : NULL;
+
+	pr_info("%s():enter.\n", __func__);
+
+	/* Alarm set */
+	events |= RTC_IRQF | RTC_AF;
+
+	if (rtc)
+		rtc_update_irq(rtc, 1, events);
+
+	return NV_TRUE;
+}
+
+static int tegra_rtc_proc(struct device *dev, struct seq_file *seq)
+{
+	if (!dev || !dev->driver)
+		return 0;
+	return seq_printf(seq, "name\t\t: %s\n", dev_name(dev));
+}
 
 static struct rtc_class_ops tegra_rtc_ops = {
+	.ioctl          = tegra_rtc_ioctl,
 	.read_time	= tegra_rtc_read_time,
 	.set_time	= tegra_rtc_set_time,
-#if (PMU_IOCTL_ENABLE)
 	.read_alarm	= tegra_rtc_read_alarm,
 	.set_alarm	= tegra_rtc_set_alarm,
-#endif
+	.proc           = tegra_rtc_proc,
 };
 
 static int __init tegra_rtc_probe(struct platform_device *pdev)
@@ -197,6 +230,7 @@ static int __init tegra_rtc_probe(struct platform_device *pdev)
 			return -EINVAL;
 	}
 
+	device_init_wakeup(&pdev->dev, 1);
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev,
 		&tegra_rtc_ops, THIS_MODULE);
@@ -208,6 +242,10 @@ static int __init tegra_rtc_probe(struct platform_device *pdev)
 		return -1;
 	}
 	platform_set_drvdata(pdev, rtc);
+
+	tegra_rtc_pdev = pdev;
+
+	NvOdmPmuAlarmHandlerSet(hPmu, tegra_rtc_alarm_interrupt);
 
 	return 0;
 }
@@ -224,11 +262,15 @@ static int __exit tegra_rtc_remove(struct platform_device *pdev)
 
 static int tegra_rtc_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	NvOdmPmuSuspendRtc(hPmu);
+
 	return 0;
 }
 
 static int tegra_rtc_resume(struct platform_device *pdev)
 {
+	NvOdmPmuResumeRtc(hPmu);
+
 	return 0;
 }
 
