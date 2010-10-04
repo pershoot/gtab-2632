@@ -32,6 +32,7 @@
 #include <mach/dma.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
+#include <mach/suspend.h>
 
 #define TRASNFER_STATUS_BY_GLOBAL_DISABLE       1
 #define APB_DMA_GEN				0x000
