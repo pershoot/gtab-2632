@@ -680,32 +680,32 @@ static struct kobj_attribute nvrm_core_lock_attribute =
 
 static int __init nvrm_init(void)
 {
-	int ret = 0;
-	printk(KERN_INFO "%s called\n", __func__);
+    int ret = 0;
+    printk(KERN_INFO "%s called\n", __func__);
 
-	#if defined(CONFIG_PM)
-	// Register PM notifier.
-	pm_notifier(tegra_pm_notifier, 0);
-	tegra_pm_notifier_continue_ok = 0;
-	init_waitqueue_head(&tegra_pm_notifier_wait);
+    #if defined(CONFIG_PM)
+    // Register PM notifier.
+    pm_notifier(tegra_pm_notifier, 0);
+    tegra_pm_notifier_continue_ok = 0;
+    init_waitqueue_head(&tegra_pm_notifier_wait);
 
-	#if defined(CONFIG_HAS_EARLYSUSPEND)
-	register_early_suspend(&tegra_display_power);
-	#endif
+    #if defined(CONFIG_HAS_EARLYSUSPEND)
+    register_early_suspend(&tegra_display_power);
+    #endif
 
-	// Create /sys/power/nvrm/notifier.
-	nvrm_kobj = kobject_create_and_add("nvrm", power_kobj);
-	sysfs_create_file(nvrm_kobj, &nvrm_core_lock_attribute.attr);
-	sysfs_create_file(nvrm_kobj, &nvrm_lp2policy_attribute.attr);
-	sysfs_create_file(nvrm_kobj, &nvrm_notifier_attribute.attr);
-	sys_nvrm_notifier = NULL;
-	init_waitqueue_head(&sys_nvrm_notifier_wait);
-	#endif
+    // Create /sys/power/nvrm/notifier.
+    nvrm_kobj = kobject_create_and_add("nvrm", power_kobj);
+    sysfs_create_file(nvrm_kobj, &nvrm_core_lock_attribute.attr);
+    sysfs_create_file(nvrm_kobj, &nvrm_lp2policy_attribute.attr);
+    sysfs_create_file(nvrm_kobj, &nvrm_notifier_attribute.attr);
+    sys_nvrm_notifier = NULL;
+    init_waitqueue_head(&sys_nvrm_notifier_wait);
+    #endif
 
-	// Register NvRm platform driver.
-	ret = platform_driver_register(&nvrm_driver);
+    // Register NvRm platform driver.
+    ret = platform_driver_register(&nvrm_driver);
 
-	return ret;
+    return ret;
 }
 
 static void __exit nvrm_deinit(void)
