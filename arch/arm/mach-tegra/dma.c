@@ -123,6 +123,7 @@ struct tegra_dma_channel {
 	void  __iomem		*addr;
 	int			mode;
 	int			irq;
+	bool			is_int_service_due;
 
 	/* Register shadow */
 	u32			csr;
@@ -198,7 +199,6 @@ void tegra_dma_flush(struct tegra_dma_channel *ch)
 }
 EXPORT_SYMBOL(tegra_dma_flush);
 
-
 /* should be called with the channel lock held */
 static unsigned int dma_active_count(struct tegra_dma_channel *ch,
 	struct tegra_dma_req *req, unsigned int status)
@@ -222,16 +222,35 @@ static unsigned int dma_active_count(struct tegra_dma_channel *ch,
 	 * half DMA buffer. So, if the DMA already finished half the DMA
 	 * then add the half buffer to the completed count.
 	 */
-	if (ch->mode & TEGRA_DMA_MODE_CONTINUOUS) {
-		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL)
-			bytes_transferred += req_transfer_count;
+	if (!(ch->mode & TEGRA_DMA_MODE_CONTINUOUS))
+		goto skip_handle_cont;
+
+	if (!((status & STA_ISE_EOC) || (ch->is_int_service_due)))
+		goto skip_irq_handle;
+
+	pr_debug("Dma transfer adjusted out of isr is_int_service_due %d\n",
+						ch->is_int_service_due);
+	if (req->is_repeat_req) {
+		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_EMPTY) {
+			pr_debug("Int hit when buffer status empty\n");
+			req->bytes_transferred = req_transfer_count << 2;
+			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL;
+		} else if (req->buffer_status ==
+					TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL) {
+			pr_debug("Int hit when buffer status half full\n");
+			pr_debug("The curr byte transferred 0x%x status 0x%x\n",
+					 bytes_transferred, status);
+			req->bytes_transferred = 0;
+			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_EMPTY;
+		} else {
+			BUG();
+		}
+		ch->is_int_service_due = false;
 	}
-
-	if (status & STA_ISE_EOC)
-		bytes_transferred += req_transfer_count;
-
+skip_irq_handle:
+	bytes_transferred += req->bytes_transferred >> 2;
+skip_handle_cont:
 	bytes_transferred *= 4;
-
 	return bytes_transferred;
 }
 
@@ -307,7 +326,7 @@ static unsigned int get_channel_status(struct tegra_dma_channel *ch,
 #endif
 
 unsigned int tegra_dma_transferred_req(struct tegra_dma_channel *ch,
-			struct tegra_dma_req *req)
+		struct tegra_dma_req *req)
 {
 	unsigned long irq_flags;
 	unsigned int bytes_transferred;
@@ -561,6 +580,7 @@ struct tegra_dma_channel *tegra_dma_allocate_channel(int mode)
 
 	ch = &dma_channels[channel];
 	ch->mode = mode;
+	ch->is_int_service_due = false;
 	return ch;
 }
 EXPORT_SYMBOL(tegra_dma_allocate_channel);
@@ -811,6 +831,8 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 	struct tegra_dma_req *req;
 	struct tegra_dma_req *next_req;
 	unsigned long irq_flags;
+	int bytes_transferred;
+
 	#if defined(BLUETOOTH_DMA_PATCH)
 	spin_lock(&ch->lock);
 	if (list_empty(&ch->list)) {
@@ -824,6 +846,13 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 		return;
 	}
 	#endif
+	if (!ch->is_int_service_due) {
+		pr_debug("This int already served, ignoring...\n");
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		return;
+	}
+	ch->is_int_service_due = false;
+
 	req = list_entry(ch->list.next, typeof(*req), node);
 	if (req) {
 		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_EMPTY) {
@@ -834,10 +863,9 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 				is_dma_ping_complete = !is_dma_ping_complete;
 			/* Out of sync - Release current buffer */
 			if( !is_dma_ping_complete ) {
-				int bytes_transferred;
-
 				bytes_transferred =
-				(ch->csr & CSR_WCOUNT_MASK) >> CSR_WCOUNT_SHIFT;
+					(ch->csr & CSR_WCOUNT_MASK) >>
+							 CSR_WCOUNT_SHIFT;
 				bytes_transferred += 1;
 				bytes_transferred <<= 3;
 				req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_FULL;
@@ -868,6 +896,11 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			 * */
 			 #if defined(BLUETOOTH_DMA_PATCH)
 			 if (ch->mode != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
+			bytes_transferred =
+				(ch->csr & CSR_WCOUNT_MASK) >> CSR_WCOUNT_SHIFT;
+			bytes_transferred += 1;
+			bytes_transferred <<= 2;
+			req->bytes_transferred = bytes_transferred;
 			if (!req->is_repeat_req) {
 				if (!list_is_last(&req->node, &ch->list)) {
 					next_req = list_entry(req->node.next,
@@ -899,15 +932,14 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL) {
 			/* Callback when the buffer is completely full (i.e on
 			 * the second  interrupt */
-			int bytes_transferred;
 
 			bytes_transferred =
 				(ch->csr & CSR_WCOUNT_MASK) >> CSR_WCOUNT_SHIFT;
 			bytes_transferred += 1;
-			bytes_transferred <<= 3;
+			bytes_transferred <<= 2;
 
 			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_FULL;
-			req->bytes_transferred = bytes_transferred;
+			req->bytes_transferred += bytes_transferred;
 			req->status = TEGRA_DMA_REQ_SUCCESS;
 			#if defined(BLUETOOTH_DMA_PATCH)
 			if (ch->mode != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
@@ -970,6 +1002,7 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 				req->complete(req);
 			#endif
 			} else {
+				req->bytes_transferred = 0;
 				req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_EMPTY;
 				req->status = TEGRA_DMA_REQ_INFLIGHT;
 				spin_unlock_irqrestore(&ch->lock, irq_flags);
@@ -992,6 +1025,26 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 }
 
 
+static irqreturn_t dma_isr(int irq, void *data)
+{
+	struct tegra_dma_channel *ch = data;
+	unsigned long status;
+	unsigned long irq_flags;
+	unsigned long ret;
+
+	spin_lock_irqsave(&ch->lock, irq_flags);
+	status = readl(ch->addr + APB_DMA_CHAN_STA);
+	if (status & STA_ISE_EOC) {
+		writel(status, ch->addr + APB_DMA_CHAN_STA);
+		ch->is_int_service_due = true;
+		ret = IRQ_WAKE_THREAD;
+	} else {
+		pr_warning("Got a spurious ISR for DMA channel %d\n", ch->id);
+		ret = IRQ_HANDLED;
+	}
+	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	return ret;
+}
 
 static irqreturn_t dma_thread_fn(int irq, void *data)
 {
@@ -1005,20 +1058,7 @@ static irqreturn_t dma_thread_fn(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
-static irqreturn_t dma_isr(int irq, void *data)
-{
-	struct tegra_dma_channel *ch = data;
-	unsigned long status;
 
-	status = readl(ch->addr + APB_DMA_CHAN_STA);
-	if (status & STA_ISE_EOC)
-		writel(status, ch->addr + APB_DMA_CHAN_STA);
-	else {
-		pr_warning("Got a spurious ISR for DMA channel %d\n", ch->id);
-		return IRQ_HANDLED;
-	}
-	return IRQ_WAKE_THREAD;
-}
 int __init tegra_dma_init(void)
 {
 	int ret = 0;
@@ -1030,7 +1070,7 @@ int __init tegra_dma_init(void)
 	writel(GEN_ENABLE, addr + APB_DMA_GEN);
 	writel(0, addr + APB_DMA_CNTRL);
 	writel(0xFFFFFFFFul >> (31 - TEGRA_SYSTEM_DMA_CH_MAX),
-	       addr + APB_DMA_IRQ_MASK_SET);
+		addr + APB_DMA_IRQ_MASK_SET);
 
 	memset(channel_usage, 0, sizeof(channel_usage));
 	memset(dma_channels, 0, sizeof(dma_channels));
