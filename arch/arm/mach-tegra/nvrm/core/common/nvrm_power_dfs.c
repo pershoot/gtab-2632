@@ -469,7 +469,6 @@ DvsChangeCpuVoltage(
 /*
  * Enable/Disable voltage scaling
  */
-static void NvRmPrivDvsRun(void);
 static void NvRmPrivDvsStopAtNominal(void);
 
 /*
@@ -2555,7 +2554,13 @@ static void NvRmPrivDvsStopAtNominal(void)
         DvsChangeCpuVoltage(pDfs->hRm, pDvs, pDvs->NominalCpuMv);
 }
 
-static void NvRmPrivDvsRun(void)
+void NvRmPrivDvsStop(void)
+{
+    NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+    pDvs->StopFlag = NV_TRUE;
+}
+
+void NvRmPrivDvsRun(void)
 {
     NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
     pDvs->UpdateFlag = NV_TRUE;
