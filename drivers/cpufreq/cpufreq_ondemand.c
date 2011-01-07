@@ -28,15 +28,15 @@
  * It helps to keep variable names smaller, simpler
  */
 
-#define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
-#define DEF_FREQUENCY_UP_THRESHOLD		(80)
-#define DEF_SAMPLING_DOWN_FACTOR		(1)
-#define MAX_SAMPLING_DOWN_FACTOR		(100000)
-#define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(3)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(95)
-#define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
-#define MIN_FREQUENCY_UP_THRESHOLD		(11)
-#define MAX_FREQUENCY_UP_THRESHOLD		(100)
+#define DEF_FREQUENCY_DOWN_DIFFERENTIAL         (10)
+#define DEF_FREQUENCY_UP_THRESHOLD              (80)
+#define DEF_SAMPLING_DOWN_FACTOR                (45)
+#define MAX_SAMPLING_DOWN_FACTOR                (95000)
+#define MICRO_FREQUENCY_DOWN_DIFFERENTIAL       (3)
+#define MICRO_FREQUENCY_UP_THRESHOLD            (85)
+#define MICRO_FREQUENCY_MIN_SAMPLE_RATE         (9500)
+#define MIN_FREQUENCY_UP_THRESHOLD              (11)
+#define MAX_FREQUENCY_UP_THRESHOLD              (100)
 
 /*
  * The polling frequency of this governor depends on the capability of
