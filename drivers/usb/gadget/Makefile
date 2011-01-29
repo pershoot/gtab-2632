@@ -58,4 +58,16 @@ obj-$(CONFIG_USB_ANDROID_ACM)	+= f_acm.o u_serial.o
 obj-$(CONFIG_USB_ANDROID_ADB)	+= f_adb.o
 obj-$(CONFIG_USB_ANDROID_MASS_STORAGE)	+= f_mass_storage.o
 obj-$(CONFIG_USB_ANDROID_RNDIS)	+= f_rndis.o u_ether.o
+obj-$(CONFIG_USB_ANDROID_SERIAL)        += serial.o u_serial.o
+obj-$(CONFIG_USB_ANDROID_PROJECTOR)     += f_projector.o
+obj-$(CONFIG_USB_ANDROID_MTP)   += f_mtp.o
+obj-$(CONFIG_USB_ANDROID_ECM)   += f_ecm.o u_ether.o
 
+# MSM specific
+ifeq ($(CONFIG_USB_ANDROID_LTE_DIAG),y)
+  obj-$(CONFIG_USB_ANDROID_DIAG)        += f_diag.o
+else
+  obj-$(CONFIG_USB_ANDROID_DIAG)        += diag.o
+endif
+
+obj-$(CONFIG_USB_HUB)   += smsc251x.o
