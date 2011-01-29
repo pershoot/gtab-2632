@@ -840,6 +840,26 @@ config USB_ANDROID_RNDIS_WCEIS
          If you enable this option, the device is no longer CDC ethernet
          compatible.
 
+config USB_ANDROID_SERIAL
+        boolean "Android gadget Serial function"
+        depends on USB_ANDROID
+        help
+
+config USB_ANDROID_PROJECTOR
+        boolean "Android gadget Projector function"
+        depends on USB_ANDROID
+        help
+
+config USB_ANDROID_MTP
+        boolean "Android gadget MTP function"
+        depends on USB_ANDROID
+        help
+
+config USB_ANDROID_ECM
+        boolean "Android gadget ECM function"
+        depends on USB_ANDROID
+        help
+
 config USB_CDC_COMPOSITE
 	tristate "CDC Composite Device (Ethernet and ACM)"
 	depends on NET
@@ -860,5 +880,30 @@ config USB_CDC_COMPOSITE
 # - none yet
 
 endchoice
+
+config USB_ACCESSORY_DETECT
+        boolean "USB ACCESSORY DETECT"
+        depends on USB_ANDROID
+        default n
+
+config USB_ACCESSORY_DETECT_BY_ADC
+        boolean "DETECT USB ACCESSORY BY PMIC ADC"
+        depends on USB_ANDROID && USB_ACCESSORY_DETECT
+        default n
+
+config DOCK_ACCESSORY_DETECT
+        boolean "DOCK ACCESSORY DETECT"
+        depends on USB_ANDROID
+        default n
+
+config USB_BYPASS_VBUS_NOTIFY
+        boolean "USB BYPASS VBUS NOTIFY"
+        depends on USB_ANDROID
+        default n
+
+config USB_HUB
+        boolean "USB HUB driver"
+        depends on USB_ANDROID
+        default n
 
 endif # USB_GADGET
