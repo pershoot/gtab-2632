@@ -62,6 +62,7 @@ obj-$(CONFIG_USB_ANDROID_SERIAL)        += serial.o u_serial.o
 obj-$(CONFIG_USB_ANDROID_PROJECTOR)     += f_projector.o
 obj-$(CONFIG_USB_ANDROID_MTP)   += f_mtp.o
 obj-$(CONFIG_USB_ANDROID_ECM)   += f_ecm.o u_ether.o
+obj-$(CONFIG_USB_ANDROID_ACCESSORY)	+= f_accessory.o
 
 # MSM specific
 ifeq ($(CONFIG_USB_ANDROID_LTE_DIAG),y)
