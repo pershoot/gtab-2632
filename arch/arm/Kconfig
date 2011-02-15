@@ -941,6 +941,42 @@ config PL310_ERRATA_588369
 	   is not correctly implemented in PL310 as clean lines are not
 	   invalidated as a result of these operations. Note that this errata
 	   uses Texas Instrument's secure monitor api.
+
+config ARM_ERRATA_720789
+	bool "ARM errata: TLBIASIDIS and TLBIMVAIS operations can broadcast a faulty ASID"
+	depends on CPU_V7 && SMP
+	help
+	  This option enables the workaround for the 720789 Cortex-A9 (prior to
+	  r2p0) erratum. A faulty ASID can be sent to the other CPUs for the
+	  broadcasted CP15 TLB maintenance operations TLBIASIDIS and TLBIMVAIS.
+	  As a consequence of this erratum, some TLB entries which should be
+	  invalidated are not, resulting in an incoherency in the system page
+	  tables. The workaround changes the TLB flushing routines to invalidate
+	  entries regardless of the ASID.
+
+config ARM_ERRATA_743622
+	bool "ARM errata: Faulty hazard checking in the Store Buffer may lead to data corruption"
+	depends on CPU_V7
+	help
+	  This option enables the workaround for the 743622 Cortex-A9
+	  (r2p0..r2p2) erratum. Under very rare conditions, a faulty
+	  optimisation in the Cortex-A9 Store Buffer may lead to data
+	  corruption. This workaround sets a specific bit in the diagnostic
+	  register of the Cortex-A9 which disables the Store Buffer
+	  optimisation, preventing the defect from occurring. This has no
+	  visible impact on the overall performance or power consumption of the
+	  processor.
+
+config ARM_ERRATA_720791
+	bool "ARM errata: Dynamic high-level clock gating corrupts the Jazelle instruction stream"
+	depends on CPU_V7
+	help
+	  This option enables the workaround for the 720791 Cortex-A9
+	  (r1p0..r1p2) erratum.  The Jazelle instruction stream may be
+	  corrupted when dynamic high-level clock gating is enabled.
+	  This workaround disables gating the Core clock when the Instruction
+	  side is waiting for a Page Table Walk answer or linefill completion.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
