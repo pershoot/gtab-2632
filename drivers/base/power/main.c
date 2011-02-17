@@ -472,7 +472,7 @@ static void dpm_drv_wdset(struct device *dev)
 	dpm_drv_wd_data.dev = dev;
 	dpm_drv_wd_data.tsk = get_current();
 	dpm_drv_wd.data = (unsigned long) &dpm_drv_wd_data;
-	mod_timer(&dpm_drv_wd, jiffies + (HZ * 3));
+	mod_timer(&dpm_drv_wd, jiffies + (HZ * 12));
 }
 
 /**
