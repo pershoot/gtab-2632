@@ -30,3 +30,10 @@ config BCM4329_ENABLE_CSCAN
         default n
         ---help---
           Enable the use of CSCAN methods.
+
+config BCM4329_ENABLE_PNO_SUPPORT
+        depends on BCM4329_ENABLE_CSCAN
+        bool "Enable PNO_SUPPORT"
+        default n
+        ---help---
+          Enable the use of PNO_SUPPORT methods.
