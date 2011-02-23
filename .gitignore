@@ -29,6 +29,7 @@
 *.lzma
 *.patch
 *.gcno
+*.str.tmp
 
 #
 # Top-level generic files
