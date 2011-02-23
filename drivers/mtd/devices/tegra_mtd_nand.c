@@ -21,6 +21,13 @@
  */
 
 #include <linux/delay.h>
+#include <linux/device.h>
+#include <linux/fs.h>
+#include <linux/mm.h>
+#include <linux/err.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/sched.h>
 #include <linux/dma-mapping.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -33,6 +40,13 @@
 #include <linux/platform_device.h>
 #include <linux/types.h>
 #include <linux/wakelock.h>
+#include <linux/compat.h>
+
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/compatmac.h>
+#include <linux/cciss_ioctl.h>
+
+#include <asm/uaccess.h>
 
 #include <asm/dma-mapping.h>
 
@@ -43,6 +57,7 @@
 #include "nvddk_nand.h"
 #include "nvos.h"
 #include "nvassert.h"
+#include "../mtdcore.h"
 
 #define DRIVER_NAME	"tegra_nand"
 #define DRIVER_DESC	"Nvidia Tegra NAND Flash Controller driver"
@@ -84,6 +99,147 @@ struct tegra_nand_info {
 #define MTD_TO_INFO(mtd) container_of((mtd), struct tegra_nand_info, mtd)
 
 #define RT_BAD_MARKER 1
+
+
+struct bootloader_message {
+	char command[32];
+	char status[32];
+	char recovery[1024];
+};
+
+
+void misc_write(void);
+
+static void mmtdchar_erase_callback (struct erase_info *instr)
+{
+        wake_up((wait_queue_head_t *)instr->priv);
+}
+
+void misc_write(void)
+{
+        int i = 0;
+        struct mtd_info *mtd;
+	struct erase_info *erase;
+	unsigned int total_block;
+	loff_t offs = 0;
+	int ret = 0;
+	struct bootloader_message boot;
+	char *data;
+	int len = 0;
+
+        for(i=0; i<MAX_MTD_DEVICES; i++) {
+                mtd = mtd_table[i];
+                if(mtd != NULL) {
+			if((!strcmp("misc", mtd->name)) || (!strcmp("MISC", mtd->name))) {
+				break; /* Got it */
+			}
+                }
+        }
+	
+	total_block = (uint32_t)(mtd->size) / mtd->erasesize;
+
+	for(i=0; i<total_block; i++) {
+		offs = mtd->erasesize * i; 
+		/* Check if it's bad block */
+		if(!(mtd->block_isbad)) {
+			if(mtd->block_isbad(mtd, offs) > 0) {
+				continue;
+			}
+		}
+		
+		/* Erase this block */
+		erase=kzalloc(sizeof(struct erase_info),GFP_KERNEL);
+		if (!erase)
+			return;
+		else {
+			wait_queue_head_t waitq;
+			
+			DECLARE_WAITQUEUE(wait, current);
+			
+			init_waitqueue_head(&waitq);
+			
+			erase->addr = offs;
+			erase->len = mtd->erasesize;
+			erase->mtd = mtd;
+			erase->callback = mmtdchar_erase_callback;
+			erase->priv = (unsigned long)&waitq;
+			
+			/*
+                          FIXME: Allow INTERRUPTIBLE. Which means
+                          not having the wait_queue head on the stack.
+			  
+                          If the wq_head is on the stack, and we
+                          leave because we got interrupted, then the
+                          wq_head is no longer there when the
+                          callback routine tries to wake us up.
+			*/
+			ret = mtd->erase(mtd, erase);
+			if (!ret) {
+				set_current_state(TASK_UNINTERRUPTIBLE);
+				add_wait_queue(&waitq, &wait);
+				if (erase->state != MTD_ERASE_DONE &&
+				    erase->state != MTD_ERASE_FAILED)
+					schedule();
+				remove_wait_queue(&waitq, &wait);
+				set_current_state(TASK_RUNNING);
+				
+				ret = (erase->state == MTD_ERASE_FAILED)?-EIO:0;
+			} else {
+				printk("Erase MISC partition successfully\n");
+			}
+			kfree(erase);
+		}
+	}
+
+	/* Write "recovery" in the front of this partition */
+	memset(&boot, 0, sizeof(boot));
+	//strlcpy(boot.command, "boot-recovery", sizeof(boot.command));
+	//strlcpy(boot.recovery, "recovery\n", sizeof(boot.recovery));//force-recovery
+	strlcpy(boot.command, "force", sizeof("boot.command"));
+	
+	if(MAX_KMALLOC_SIZE < 0x20000) {
+		data=kmalloc(MAX_KMALLOC_SIZE, GFP_KERNEL);
+		len = MAX_KMALLOC_SIZE;
+	} else {
+		data=kmalloc(0x20000, GFP_KERNEL);
+		len = 0x20000;
+	}
+
+	if(data == NULL) {
+		return;
+	}
+
+	memset(data, 0, len);
+	memcpy((data+0x800), (char *)&boot, sizeof(boot));
+	
+	/* one block is enough */
+	i = 0;
+	while(i<total_block){
+		unsigned int retlen = 0;
+		
+		offs = mtd->erasesize * i;
+		i++;
+                /* Check if it's bad block */
+                if(!(mtd->block_isbad)) {
+                        if(mtd->block_isbad(mtd, offs) > 0) {
+                                continue;
+                        }
+                }
+		
+		ret = (*(mtd->write))(mtd, offs, len, &retlen, data);
+		
+		if(!ret) {
+			printk("Write misc successfully.\n");
+			break;
+		} else {
+			printk("Failed to write misc\n");
+			continue;
+		}
+	}
+
+	return;
+}
+
 
 /* must be called with lock held */
 static int check_block_isbad(struct mtd_info *mtd, loff_t offs,

@@ -137,6 +137,7 @@ static struct usb_mass_storage_platform_data tegra_usb_fsg_platform = {
 	.product = "Tegra 2",
 	.nluns = 1,
 	.bulk_size = 16384,
+        //.bulk_size = 4096,
 };
 static struct platform_device tegra_usb_fsg_device = {
 	.name = "usb_mass_storage",

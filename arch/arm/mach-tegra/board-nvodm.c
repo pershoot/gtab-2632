@@ -62,6 +62,7 @@
 #include "power.h"
 #include "board.h"
 #include "nvrm_pmu.h"
+#include <linux/switch_dock.h>
 
 # define BT_RESET 0
 # define BT_SHUTDOWN 1
@@ -359,20 +360,32 @@ static void __init tegra_setup_sdhci(void) {
 		if (!gpio)
 			gpio_count = 0;
 		switch (gpio_count) {
+        	case 3://add by navy to control sd power on or off
+            		plat->gpio_nr_wp = -1;
+			plat->gpio_nr_cd = 8*gpio[0].Port + gpio[0].Pin;
+			plat->gpio_polarity_cd = active_high(&gpio[0]);
+            		plat->gpio_nr_en = 8*gpio[1].Port + gpio[1].Pin;
+			plat->gpio_polarity_en= active_high(&gpio[1]);
+            		break;
 		case 2:
 			plat->gpio_nr_wp = 8*gpio[1].Port + gpio[1].Pin;
 			plat->gpio_nr_cd = 8*gpio[0].Port + gpio[0].Pin;
 			plat->gpio_polarity_wp = active_high(&gpio[1]);
 			plat->gpio_polarity_cd = active_high(&gpio[0]);
+            		plat->gpio_nr_en =-1;
 			break;
 		case 1:
 			plat->gpio_nr_wp = -1;
 			plat->gpio_nr_cd = 8*gpio[0].Port + gpio[0].Pin;
 			plat->gpio_polarity_cd = active_high(&gpio[0]);
+	            //add by navy
+	            	plat->gpio_nr_en =-1;
+	            //
 			break;
 		case 0:
 			plat->gpio_nr_wp = -1;
 			plat->gpio_nr_cd = -1;
+            		plat->gpio_nr_en =-1;
 			break;
 		}
 
@@ -1141,6 +1154,8 @@ static struct platform_device tegra_touch_device = {
 };
 #endif
 
+
+
 #ifdef CONFIG_INPUT_TEGRA_ODM_ACCEL
 static struct platform_device tegra_accelerometer_device = {
 	.name = "tegra_accelerometer",
@@ -1162,6 +1177,84 @@ static struct platform_device tegra_vibrator_device = {
 };
 #endif
 
+#ifdef CONFIG_KEYBOARD_SO340010
+static struct platform_device so340010_kbd_device = 
+{
+	.name = "so340010_kbd",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_SWITCH_DOCK
+static struct dock_switch_platform_data dock_switch_data = {
+	.gpio_desktop = 8*('h'-'a')+0,//TEGRA_GPIO_DESKTOP_DOCK;/* Your gpio number*/
+	//.gpio_desktop = 8*('x'-'a')+7,
+	.gpio_desktop_active_low = 0,		/* Is gpio active low ?*/
+	.gpio_car = 0,				/* If donot have an car dock, leave it 0 */
+	.gpio_car = 0,				/* Car dock active low ?*/
+};
+
+static struct platform_device switch_dock_device = {
+	.name = DOCK_SWITCH_NAME,
+	.id = -1,
+	.dev = {
+		.platform_data = &dock_switch_data,
+	},
+};
+#endif
+
+#if defined(CONFIG_YOKU_0563113_BATTERY)
+static struct platform_device yoku_0563113_battery_device = 
+{
+	.name = "yoku_0563113_battery",
+	.id = -1,
+};
+#endif
+#if (defined(CONFIG_SMBA1002_BATTERY) || defined(CONFIG_SMBA1011_BATTERY))
+static struct platform_device smba1002_battery_device = 
+{
+	.name = "smba10xx_battery",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_INPUT_GPS_CONTROL
+static struct platform_device gps_control_device = {
+	.name = "gps_control",
+	.id = -1, 
+};
+#endif
+
+#ifdef CONFIG_INPUT_DUMMY_SENSOR
+static struct platform_device dummy_sensor_device = 
+{
+	.name = "dummy_sensor",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_INPUT_LIS35DE_ACCEL
+static struct platform_device lis35de_accelerometer_device = 
+{
+	.name = "accelerometer",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_INPUT_ISL29023_LS
+static struct platform_device isl29023_ls_device = {
+	.name = "light_sensor",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_SWITCH_H2W
+	static struct platform_device switch_h2w_device = {
+		.name = "switch-h2w",
+		.id = -1,
+	};
+#endif
+	
 static struct platform_device *nvodm_devices[] __initdata = {
 #ifdef CONFIG_RTC_DRV_TEGRA
 	&tegra_rtc_device,
@@ -1674,6 +1767,42 @@ void __init tegra_setup_nvodm(bool standard_i2c, bool standard_spi)
 		tegra_setup_spi();
 	tegra_setup_w1();
 	pm_power_off = tegra_system_power_off;
+	#ifdef CONFIG_KEYBOARD_SO340010
+	(void)platform_device_register(&so340010_kbd_device);
+	#endif
+	
+	#if defined(CONFIG_YOKU_0563113_BATTERY)
+	(void) platform_device_register(&yoku_0563113_battery_device);
+	#endif
+	
+	#if (defined(CONFIG_SMBA1011_BATTERY)||defined(CONFIG_SMBA1002_BATTERY))
+	(void) platform_device_register(&smba1002_battery_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_GPS_CONTROL
+	(void) platform_device_register(&gps_control_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_DUMMY_SENSOR
+	(void) platform_device_register(&dummy_sensor_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_ISL29023_LS
+		(void) platform_device_register(&isl29023_ls_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_LIS35DE_ACCEL
+		(void) platform_device_register(&lis35de_accelerometer_device);
+	#endif
+	
+	#ifdef CONFIG_SWITCH_DOCK//should be initilized before CONFIG_SWITCH_H2W
+		(void) platform_device_register(&switch_dock_device);
+	#endif
+	
+	#ifdef CONFIG_SWITCH_H2W//should be initilized after CONFIG_SWITCH_DOCK
+		(void) platform_device_register(&switch_h2w_device);
+	#endif
+		
 	tegra_setup_suspend();
 	tegra_setup_reboot();
 }

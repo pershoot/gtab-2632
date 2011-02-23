@@ -177,6 +177,9 @@ typedef struct
     /// Holds the orientation based on the LCD screen.
     NvU32 Orientation;
 
+    /// Holds the version of the touchscreen.
+    NvU32 Version;
+
 } NvOdmTouchCapabilities;
 
 
@@ -396,6 +399,28 @@ NvOdmTouchOutputDebugMessage(NvOdmTouchDeviceHandle hDevice);
  */
 NvBool
 NvOdmTouchGetCalibrationData(NvOdmTouchDeviceHandle hDevice, NvU32 NumOfCalibrationData, NvS32* pRawCoordBuffer);
+
+/**
+ * Sets the touch panel calibration by itself.
+ * This is optional as calibration may perform after the OS is up.
+ * (For AT168 touchscreen and set SPECOP reg for calibration by itself)
+ * @param hDevice A handle to the touch panel.
+ *
+ * @return NV_TRUE if preset calibration data is required, or NV_FALSE otherwise.
+ */
+void
+NvOdmTouchSetCalibration(NvOdmTouchDeviceHandle hDevice);
+
+/**
+ * Burn bootloader and FW to touchscreen.
+ * This is optional must be perform after the OS is up.
+ * @param hDevice A handle to the touch panel.
+ *
+ * @return NV_TRUE if burn is success, or NV_FALSE fail.
+ */
+NvBool
+NvOdmTouchBurnBootloader(NvOdmTouchDeviceHandle hDevice);
+
 #if defined(__cplusplus)
 }
 #endif

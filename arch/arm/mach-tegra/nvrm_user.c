@@ -456,6 +456,8 @@ static const char *STRING_PM_DISPLAY_ON      = "PM_DISPLAY_ON";
 static const char *STRING_PM_CONTINUE        = "PM_CONTINUE";
 static const char *STRING_PM_SIGNAL          = "PM_SIGNAL";
 
+unsigned int PM_SCREEN_IS_OFF = 0;
+
 // Reading blocks if the value is not available.
 static ssize_t
 nvrm_notifier_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -481,7 +483,17 @@ nvrm_notifier_show(struct kobject *kobj, struct kobj_attribute *attr,
 	// Return the value, and clear.
 	printk(KERN_INFO "%s: returning with '%s'\n", __func__, sys_nvrm_notifier);
 	nchar = sprintf(buf, "%s\n", sys_nvrm_notifier);
+
+        if(strcmp(sys_nvrm_notifier, STRING_PM_DISPLAY_OFF) == 0) {
+                PM_SCREEN_IS_OFF = 1;
+                printk("PM_SCREEN_IS_OFF set to 1 \n");
+        } else if (strcmp(sys_nvrm_notifier, STRING_PM_DISPLAY_ON) == 0) {
+                PM_SCREEN_IS_OFF = 0;
+                printk("PM_SCREEN_IS_OFF set to 0 \n");
+        }
+
 	sys_nvrm_notifier = NULL;
+
 	return nchar;
 }
 
@@ -542,6 +554,8 @@ static void notify_daemon(const char* notice)
 	sys_nvrm_notifier = NULL;
 }
 
+unsigned int WAKE_UP_FROM_LP1_FLAG = 0;
+
 int tegra_pm_notifier(struct notifier_block *nb,
 			  unsigned long event, void *nouse)
 {
@@ -553,6 +567,8 @@ int tegra_pm_notifier(struct notifier_block *nb,
 #ifndef CONFIG_HAS_EARLYSUSPEND
 		notify_daemon(STRING_PM_DISPLAY_OFF);
 #endif
+                /* Fixme : will it return here? */
+                WAKE_UP_FROM_LP1_FLAG = 1;
 		notify_daemon(STRING_PM_SUSPEND_PREPARE);
 		break;
 	case PM_POST_SUSPEND:

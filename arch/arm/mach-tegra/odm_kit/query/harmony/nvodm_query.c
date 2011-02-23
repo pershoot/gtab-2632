@@ -84,9 +84,9 @@ s_NvOdmQueryDownloadTransportSetting = NvOdmDownloadTransport_None;
 static const NvOdmQuerySdioInterfaceProperty s_NvOdmQuerySdioInterfaceProperty[4] =
 {
     { NV_FALSE, 10,  NV_TRUE, 0x8, NvOdmQuerySdioSlotUsage_wlan   },
-    { NV_TRUE,   0, NV_FALSE, 0x5, NvOdmQuerySdioSlotUsage_Media  },
-    { NV_TRUE,   0, NV_FALSE, 0x6, NvOdmQuerySdioSlotUsage_unused },
-    { NV_TRUE,   0, NV_FALSE, 0x4, NvOdmQuerySdioSlotUsage_Media  }
+    { NV_TRUE,   0, NV_FALSE, 0x5, NvOdmQuerySdioSlotUsage_unused  },
+    { NV_TRUE,   0, NV_FALSE, 0x6, NvOdmQuerySdioSlotUsage_Media },
+    { NV_FALSE,   0, NV_FALSE, 0x4, NvOdmQuerySdioSlotUsage_Media  }
 };
 
 static const NvOdmQuerySpiDeviceInfo s_NvOdmQuerySpiDeviceInfoTable [] =
@@ -181,6 +181,117 @@ static const NvOdmQueryDapPortProperty s_NvOdmQueryDapPortInfoTable[] =
 
 static const NvOdmSdramControllerConfigAdv s_NvOdmHyS5c1GbEmcConfigTable[] =
 {
+	#if 1 //from peter pan 
+	{
+                  0x20,   /* Rev 2.0 */
+                166500,   /* SDRAM frquency */
+                  1000,   /* EMC core voltage */
+                    46,   /* Number of EMC parameters below */
+        {
+            0x0000000A,   /* RC */
+            0x00000016,   /* RFC */
+            0x00000008,   /* RAS */
+            0x00000003,   /* RP */
+            0x00000004,   /* R2W */
+            0x00000004,   /* W2R */
+            0x00000002,   /* R2P */
+            0x0000000C,   /* W2P */
+            0x00000003,   /* RD_RCD */
+            0x00000003,   /* WR_RCD */
+            0x00000002,   /* RRD */
+            0x00000001,   /* REXT */
+            0x00000004,   /* WDV */
+            0x00000005,   /* QUSE */
+            0x00000004,   /* QRST */
+            0x00000009,   /* QSAFE */
+            0x0000000D,   /* RDV */
+            0x000004DF,   /* REFRESH */
+            0x00000000,   /* BURST_REFRESH_NUM */
+            0x00000003,   /* PDEX2WR */
+            0x00000003,   /* PDEX2RD */
+            0x00000003,   /* PCHG2PDEN */
+            0x00000003,   /* ACT2PDEN */
+            0x00000001,   /* AR2PDEN */
+            0x0000000A,   /* RW2PDEN */
+            0x000000C8,   /* TXSR */
+            0x00000003,   /* TCKE */
+            0x00000006,   /* TFAW */
+            0x00000004,   /* TRPAB */
+            0x00000008,   /* TCLKSTABLE */
+            0x00000002,   /* TCLKSTOP */
+            0x00000000,   /* TREFBW */
+            0x00000004,   /* QUSE_EXTRA */
+            0x00000002,   /* FBIO_CFG6 */
+            0x00000000,   /* ODT_WRITE */
+            0x00000000,   /* ODT_READ */
+            0x00000083,   /* FBIO_CFG5 */
+            0xa05c04ae,   /* CFG_DIG_DLL */
+            0x007fd010,   /* DLL_XFORM_DQS */
+            0x00000000,   /* DLL_XFORM_QUSE */
+            0x00000000,   /* ZCAL_REF_CNT */
+            0x00000000,   /* ZCAL_WAIT_CNT */
+            0x00000000,   /* AUTO_CAL_INTERVAL */
+            0x00000000,   /* CFG_CLKTRIM_0 */
+            0x00000000,   /* CFG_CLKTRIM_1 */
+            0x00000000,   /* CFG_CLKTRIM_2 */
+        }
+    },
+    {
+                  0x20,   /* Rev 2.0 */
+                333000,   /* SDRAM frquency */
+                  1200,   /* EMC core voltage */
+                    46,   /* Number of EMC parameters below */
+        {
+            0x00000014,   /* RC */
+            0x0000002B,   /* RFC */
+            0x0000000F,   /* RAS */
+            0x00000005,   /* RP */
+            0x00000004,   /* R2W */
+            0x00000005,   /* W2R */
+            0x00000003,   /* R2P */
+            0x0000000C,   /* W2P */
+            0x00000005,   /* RD_RCD */
+            0x00000005,   /* WR_RCD */
+            0x00000003,   /* RRD */
+            0x00000001,   /* REXT */
+            0x00000004,   /* WDV */
+            0x00000005,   /* QUSE */
+            0x00000004,   /* QRST */
+            0x00000009,   /* QSAFE */
+            0x0000000D,   /* RDV */
+            0x000009FF,   /* REFRESH */
+            0x00000000,   /* BURST_REFRESH_NUM */
+            0x00000003,   /* PDEX2WR */
+            0x00000003,   /* PDEX2RD */
+            0x00000005,   /* PCHG2PDEN */
+            0x00000005,   /* ACT2PDEN */
+            0x00000001,   /* AR2PDEN */
+            0x0000000F,   /* RW2PDEN */
+            0x000000C8,   /* TXSR */
+            0x00000003,   /* TCKE */
+            0x0000000C,   /* TFAW */
+            0x00000006,   /* TRPAB */
+            0x00000008,   /* TCLKSTABLE */
+            0x00000002,   /* TCLKSTOP */
+            0x00000000,   /* TREFBW */
+            0x00000004,   /* QUSE_EXTRA */
+            0x00000002,   /* FBIO_CFG6 */
+            0x00000000,   /* ODT_WRITE */
+            0x00000000,   /* ODT_READ */
+            0x00000083,   /* FBIO_CFG5 */
+            0xe044048b,   /* CFG_DIG_DLL */
+            0x007fb010,   /* DLL_XFORM_DQS */
+            0x0000b517,   /* DLL_XFORM_QUSE */
+            0x00000000,   /* ZCAL_REF_CNT */
+            0x00000000,   /* ZCAL_WAIT_CNT */
+            0x00000000,   /* AUTO_CAL_INTERVAL */
+            0x00000000,   /* CFG_CLKTRIM_0 */
+            0x00000000,   /* CFG_CLKTRIM_1 */
+            0x00000000,   /* CFG_CLKTRIM_2 */
+        }
+    }
+	
+	#else
     {
                   0x20,   /* Rev 2.0 */
                 166500,   /* SDRAM frquency */
@@ -289,6 +400,7 @@ static const NvOdmSdramControllerConfigAdv s_NvOdmHyS5c1GbEmcConfigTable[] =
             0x00000000,   /* CFG_CLKTRIM_2 */
         }
     }
+    #endif
 };
 
 // Wake Events
@@ -299,29 +411,29 @@ static NvOdmWakeupPadInfo s_NvOdmWakeupPadInfo[] =
     {NV_FALSE,  2, NvOdmWakeupPadPolarity_High},    // Wake Event  2 - dvi_d3
     {NV_FALSE,  3, NvOdmWakeupPadPolarity_Low},     // Wake Event  3 - sdio3_dat1
     {NV_FALSE,  4, NvOdmWakeupPadPolarity_High},    // Wake Event  4 - hdmi_int (HDMI_HPD)
-    {NV_TRUE,   5, NvOdmWakeupPadPolarity_Low},     // Wake Event  5 - vgp[6] (VI_GP6, Flash_EN2)
+    {NV_FALSE,   5, NvOdmWakeupPadPolarity_Low},     // Wake Event  5 - vgp[6] (VI_GP6, Flash_EN2)
     {NV_FALSE,  6, NvOdmWakeupPadPolarity_High},    // Wake Event  6 - gp3_pu[5] (GPS_ON_OFF, GPS_IRQ)
     {NV_FALSE,  7, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event  7 - gp3_pu[6] (GPS_INT, BT_IRQ)
     {NV_FALSE,  8, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event  8 - gmi_wp_n (MICRO SD_CD)
     {NV_FALSE,  9, NvOdmWakeupPadPolarity_High},    // Wake Event  9 - gp3_ps[2] (KB_COL10)
     {NV_FALSE, 10, NvOdmWakeupPadPolarity_High},    // Wake Event 10 - gmi_ad21 (Accelerometer_TH/TAP)
-    {NV_TRUE,  11, NvOdmWakeupPadPolarity_Low},     // Wake Event 11 - spi2_cs2 (PEN_INT, AUDIO-IRQ, LOW_BAT#)
+    {NV_FALSE,  11, NvOdmWakeupPadPolarity_Low},     // Wake Event 11 - spi2_cs2 (PEN_INT, AUDIO-IRQ, LOW_BAT#)
     {NV_FALSE, 12, NvOdmWakeupPadPolarity_Low},     // Wake Event 12 - spi2_cs1 (HEADSET_DET, not used)
     {NV_FALSE, 13, NvOdmWakeupPadPolarity_Low},     // Wake Event 13 - sdio1_dat1
     {NV_FALSE, 14, NvOdmWakeupPadPolarity_High},    // Wake Event 14 - gp3_pv[6] (WLAN_INT)
     {NV_FALSE, 15, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event 15 - gmi_ad16  (SPI3_DOUT, DTV_SPI4_CS1)
-    {NV_TRUE,  16, NvOdmWakeupPadPolarity_High},    // Wake Event 16 - rtc_irq
+    {NV_FALSE,  16, NvOdmWakeupPadPolarity_High},    // Wake Event 16 - rtc_irq
 #ifdef CONFIG_KEYBOARD_TEGRA
-    {NV_TRUE,  17, NvOdmWakeupPadPolarity_High},    // Wake Event 17 - kbc_interrupt
+    {NV_FALSE,  17, NvOdmWakeupPadPolarity_High},    // Wake Event 17 - kbc_interrupt
 #else
     {NV_FALSE, 17, NvOdmWakeupPadPolarity_High},
 #endif
-    {NV_TRUE,  18, NvOdmWakeupPadPolarity_Low},     // Wake Event 18 - pwr_int (PMIC_INT)
+    {NV_FALSE,  18, NvOdmWakeupPadPolarity_Low},     // Wake Event 18 - pwr_int (PMIC_INT)
     {NV_FALSE, 19, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event 19 - usb_vbus_wakeup[0]
     {NV_FALSE, 20, NvOdmWakeupPadPolarity_High},    // Wake Event 20 - usb_vbus_wakeup[1]
     {NV_FALSE, 21, NvOdmWakeupPadPolarity_Low},     // Wake Event 21 - usb_iddig[0]
     {NV_FALSE, 22, NvOdmWakeupPadPolarity_Low},     // Wake Event 22 - usb_iddig[1]
-    {NV_TRUE,  23, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event 23 - gmi_iordy (HSMMC_CLK)
+    {NV_FALSE,  23, NvOdmWakeupPadPolarity_AnyEdge}, // Wake Event 23 - gmi_iordy (HSMMC_CLK)
     {NV_TRUE,  24, NvOdmWakeupPadPolarity_Low},     // Wake Event 24 - gp3_pv[2]
     {NV_FALSE, 25, NvOdmWakeupPadPolarity_High},    // Wake Event 25 - gp3_ps[4] (KB_COL12)
     {NV_FALSE, 26, NvOdmWakeupPadPolarity_High},    // Wake Event 26 - gp3_ps[5] (KB_COL10)
@@ -558,7 +670,8 @@ NvOdmQueryOscillator NvOdmQueryGetOscillatorSource(void)
 NvU32 NvOdmQueryGetOscillatorDriveStrength(void)
 {
     /// Oscillator drive strength range is 0 to 0x3F
-    return 0x04;
+    //return 0x04;
+    return 0x07;//navy
 }
 
 const NvOdmWakeupPadInfo *NvOdmQueryGetWakeupPadTable(NvU32 *pSize)
@@ -603,13 +716,17 @@ const NvU8* NvOdmQueryProjectName(void)
 
  // Pin attributes
 static const NvOdmPinAttrib pin_config[] = {
+    // Pull ups for the uart for bluetooth pins
+    { NvOdmPinRegister_Ap20_PullUpDown_D,
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_D(0x0, 0x0, 0x0, 0x0, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0) },
+
     // Pull ups for the kbc pins
     { NvOdmPinRegister_Ap20_PullUpDown_B,
      NVODM_QUERY_PIN_AP20_PULLUPDOWN_B(0x0, 0x0, 0x0, 0x0, 0x2, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0) },
 
     // Pull ups for the kbc pins
     { NvOdmPinRegister_Ap20_PullUpDown_E,
-     NVODM_QUERY_PIN_AP20_PULLUPDOWN_E(0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x2, 0x2) },
+     NVODM_QUERY_PIN_AP20_PULLUPDOWN_E(0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x2, 0x0, 0x0, 0x2, 0x0, 0x0, 0x2, 0x0, 0x2, 0x2) },
 
     // Set pad control for the sdio2 - - AOCFG1 and AOCFG2 pad control register
     { NvOdmPinRegister_Ap20_PadCtrl_AOCFG1PADCTRL,
@@ -706,9 +823,12 @@ const NvOdmSocPowerStateInfo* NvOdmQueryLowestSocPowerState(void)
             LPStateSelection = NV_DRF_VAL(TEGRA_DEVKIT, BCT_CUSTOPT, LPSTATE, LPStateSelection);
         }
         // Lowest power state controlled by the flashed custom option.
-        PowerStateInfo.LowestPowerState =  ((LPStateSelection != TEGRA_DEVKIT_BCT_CUSTOPT_0_LPSTATE_LP1)?
-                                            NvOdmSocPowerState_Suspend : NvOdmSocPowerState_DeepSleep);
+        //PowerStateInfo.LowestPowerState =  ((LPStateSelection != TEGRA_DEVKIT_BCT_CUSTOPT_0_LPSTATE_LP1)?
+         //                                   NvOdmSocPowerState_Suspend : NvOdmSocPowerState_DeepSleep);
+        //pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
+		PowerStateInfo.LowestPowerState = NvOdmSocPowerState_Suspend;
         pPowerStateInfo = (const NvOdmSocPowerStateInfo*) &PowerStateInfo;
+
     }
     return (pPowerStateInfo);
 }

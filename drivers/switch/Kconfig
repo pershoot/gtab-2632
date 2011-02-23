@@ -12,4 +12,19 @@ config SWITCH_GPIO
 	help
 	  Say Y here to enable GPIO based switch support.
 
+config SWITCH_H2W
+	tristate "H2w Switch support"
+	help
+	  Say Y here to enable h2w switch.
+
+config SWITCH_DOCK_H2W
+	tristate "Dock h2w switch support"
+	help
+	  Say Y here to enable dock h2w switch.
+
+config SWITCH_DOCK
+	tristate "Dock switch support"
+	help
+	  Say Y here to enable dock switch.
+
 endif # SWITCH

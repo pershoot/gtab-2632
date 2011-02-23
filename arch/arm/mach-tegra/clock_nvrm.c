@@ -152,8 +152,14 @@ static int tegra_periph_clk_set_rate(struct clk *c, unsigned long rate)
 		max = min = NvRmFreqUnspecified;
 	}
 
-	e = NvRmPowerModuleClockConfig(s_hRmGlobal, c->module, clk_pwr_client,
-		min, max, &freq, 1, &freq, 0);
+
+	if(c->module == NvRmModuleID_Sdio) {
+		e = NvRmPowerModuleClockConfig(s_hRmGlobal, c->module, clk_pwr_client,
+					       min, max, &freq, 1, &freq, NvRmClockConfig_QuietOverClock);	
+	} else {
+		e = NvRmPowerModuleClockConfig(s_hRmGlobal, c->module, clk_pwr_client,
+                                               min, max, &freq, 1, &freq, 0);
+	}
 
 	if (e!=NvSuccess) {
 		pr_err("%s: failed to configure %s to %luHz\n",

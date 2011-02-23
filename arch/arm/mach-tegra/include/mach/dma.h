@@ -24,7 +24,7 @@
 #include <linux/list.h>
 
 #if defined(CONFIG_TEGRA_SYSTEM_DMA)
-
+#define BLUETOOTH_DMA_PATCH
 struct tegra_dma_req;
 struct tegra_dma_channel;
 
@@ -60,12 +60,19 @@ enum tegra_dma_mode {
 	TEGRA_DMA_SHARED = 1,
 	TEGRA_DMA_MODE_CONTINUOUS = 2,
 	TEGRA_DMA_MODE_ONESHOT = 4,
+	#if defined(BLUETOOTH_DMA_PATCH)
+	TEGRA_DMA_MODE_SAME_BUFFER = 8,
+	TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER = 0xA,
+	#endif
 };
 
 enum tegra_dma_req_error {
 	TEGRA_DMA_REQ_SUCCESS = 0,
 	TEGRA_DMA_REQ_ERROR_ABORTED,
 	TEGRA_DMA_REQ_INFLIGHT,
+	#if defined(BLUETOOTH_DMA_PATCH)
+	TEGRA_DMA_REQ_STOPPED,
+	#endif
 };
 
 enum tegra_dma_req_buff_status {
@@ -142,7 +149,12 @@ void tegra_dma_flush(struct tegra_dma_channel *ch);
 
 unsigned int tegra_dma_transferred_req(struct tegra_dma_channel *ch,
 	struct tegra_dma_req *req);
-
+#if defined(BLUETOOTH_DMA_PATCH)
+int tegra_dma_get_transfer_count(struct tegra_dma_channel *ch,
+	struct tegra_dma_req *_req, bool is_stop_dma);
+int tegra_dma_start_dma(struct tegra_dma_channel *ch,
+	struct tegra_dma_req *_req);
+#endif
 bool tegra_dma_is_req_inflight(struct tegra_dma_channel *ch,
 	struct tegra_dma_req *req);
 bool tegra_dma_is_empty(struct tegra_dma_channel *ch);

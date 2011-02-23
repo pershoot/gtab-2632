@@ -38,6 +38,7 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 
+//#define MMC_PATCH_2
 static struct workqueue_struct *workqueue;
 static struct wake_lock mmc_delayed_work_wake_lock;
 
@@ -1060,6 +1061,11 @@ void mmc_detect_change(struct mmc_host *host, unsigned long delay)
 
 EXPORT_SYMBOL(mmc_detect_change);
 
+#ifdef MMC_PATCH_2
+extern void sdhci_tegra_card_detect(unsigned long data);
+struct timer_list detect_timer;
+static unsigned int timer_inited = 0;
+#endif
 
 void mmc_rescan(struct work_struct *work)
 {
@@ -1068,6 +1074,9 @@ void mmc_rescan(struct work_struct *work)
 	u32 ocr;
 	int err;
 	int extend_wakelock = 0;
+#ifdef MMC_PATCH_2
+	unsigned int attached = 0;
+#endif
 
 	mmc_bus_get(host);
 
@@ -1107,7 +1116,7 @@ void mmc_rescan(struct work_struct *work)
 
 	mmc_power_up(host);
 	mmc_go_idle(host);
-
+	mdelay(200);
 	mmc_send_if_cond(host, host->ocr_avail);
 
 	/*
@@ -1116,7 +1125,15 @@ void mmc_rescan(struct work_struct *work)
 	err = mmc_send_io_op_cond(host, 0, &ocr);
 	if (!err) {
 		if (mmc_attach_sdio(host, ocr))
+#ifdef MMC_PATCH_2
+		{
+#endif
 			mmc_power_off(host);
+#ifdef MMC_PATCH_2
+                } else {
+                        attached = 1;
+                }
+#endif
 		extend_wakelock = 1;
 		goto out;
 	}
@@ -1127,7 +1144,15 @@ void mmc_rescan(struct work_struct *work)
 	err = mmc_send_app_op_cond(host, 0, &ocr);
 	if (!err) {
 		if (mmc_attach_sd(host, ocr))
+#ifdef MMC_PATCH_2
+		{
+#endif
 			mmc_power_off(host);
+#ifdef MMC_PATCH_2
+                } else {
+                        attached = 1;
+                }
+#endif
 		extend_wakelock = 1;
 		goto out;
 	}
@@ -1138,7 +1163,15 @@ void mmc_rescan(struct work_struct *work)
 	err = mmc_send_op_cond(host, 0, &ocr);
 	if (!err) {
 		if (mmc_attach_mmc(host, ocr))
+#ifdef MMC_PATCH_2
+		{
+#endif
 			mmc_power_off(host);
+#ifdef MMC_PATCH_2
+                } else {
+                        attached = 1;
+                }
+#endif
 		extend_wakelock = 1;
 		goto out;
 	}
@@ -1154,6 +1187,23 @@ out:
 
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		queue_delayed_work(workqueue, &host->detect, HZ);
+#ifdef MMC_PATCH_2
+	/* Create a one-shot timer work, work after 1 second */
+        if(!strcmp(mmc_hostname(host), "mmc1")) {
+                printk("Try to add timer for %s \n", mmc_hostname(host));
+                
+                if(timer_inited == 0){
+                        init_timer(&detect_timer);
+                        detect_timer.data = (unsigned long)host;
+                        detect_timer.function = sdhci_tegra_card_detect;
+                        detect_timer.expires = jiffies + HZ;
+                        add_timer(&detect_timer);
+                        timer_inited = 1;
+                } else {
+                        mod_timer(&detect_timer, jiffies + HZ);
+                }
+        }
+#endif
 }
 
 void mmc_start_host(struct mmc_host *host)

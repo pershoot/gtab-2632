@@ -1460,6 +1460,25 @@ err_out:
 	return rv;
 }
 
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)	//Add by Conlin;2010-9-15
+static int acm_reset_resume(struct usb_interface *intf)
+{
+	struct acm *acm = usb_get_intfdata(intf);
+	struct tty_struct *tty;
+
+	mutex_lock(&acm->mutex);
+	if(acm->port.count){
+		tty = tty_port_tty_get(&acm->port);
+		if(tty){
+			tty_hangup(tty);
+			tty_kref_put(tty);
+		}
+	}
+	mutex_unlock(&acm->mutex);
+	return acm_resume(intf);
+}
+#endif
+
 #endif /* CONFIG_PM */
 /*
  * USB driver structure.
@@ -1546,6 +1565,9 @@ static struct usb_driver acm_driver = {
 #ifdef CONFIG_PM
 	.suspend =	acm_suspend,
 	.resume =	acm_resume,
+#endif
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)	//Add by Conlin;2010-9-15
+	.reset_resume =	acm_reset_resume,
 #endif
 	.id_table =	acm_ids,
 #ifdef CONFIG_PM

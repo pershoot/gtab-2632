@@ -46,9 +46,9 @@
 
 static const NvU32 s_NvOdmPinMuxConfig_Uart[] = {
     NvOdmUartPinMap_Config4,    // UART1, 2 lines
-    NvOdmUartPinMap_Config2,    // UART2, 2 lines
+    0,//NvOdmUartPinMap_Config2,    // UART2, 2 lines
     NvOdmUartPinMap_Config1,    // UART3, 4 lines
-    NvOdmUartPinMap_Config2,    // UART4, 4 lines
+    NvOdmUartPinMap_Config1,    // UART4, 4 lines gps
     0                           // UART5
 };
 
@@ -75,18 +75,18 @@ static const NvU32 s_NvOdmPinMuxConfig_I2cPmu[] = {
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Ulpi[] = {
-    NvOdmUlpiPinMap_Config1
+    0
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Sdio[] = {
-    NvOdmSdioPinMap_Config1, 
-    NvOdmSdioPinMap_Config5,
+    NvOdmSdioPinMap_Config1,
     0,
-    NvOdmSdioPinMap_Config2
+    NvOdmSdioPinMap_Config2,
+    NvOdmSdioPinMap_Config2,
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Spdif[] = {
-    NvOdmSpdifPinMap_Config2
+    0
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Hsi[] = {
@@ -102,7 +102,8 @@ static const NvU32 s_NvOdmPinMuxConfig_Hdmi[] = {
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Pwm[] = {
-    NvOdmPwmPinMap_Config6
+       NvOdmPwmPinMap_Config1
+	//NvOdmPwmPinMap_Config6 //navy
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Ata[] = {
@@ -115,14 +116,14 @@ static const NvU32 s_NvOdmPinMuxConfig_Nand[] = {
 
 static const NvU32 s_NvOdmPinMuxConfig_Dap[] = {
     NvOdmDapPinMap_Config1,
-    NvOdmDapPinMap_Config1, 
+    0, 
     0, 
     NvOdmDapPinMap_Config1,
     0
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Kbd[] = {
-    NvOdmKbdPinMap_Config1
+    0
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_SyncNor[] = {
@@ -134,13 +135,13 @@ static const NvU32 s_NvOdmPinMuxConfig_Mio[] = {
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_ExternalClock[] = {
-    NvOdmExternalClockPinMap_Config2,  
-    NvOdmExternalClockPinMap_Config3,
+    NvOdmExternalClockPinMap_Config2,
+    0,
     NvOdmExternalClockPinMap_Config1
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_VideoInput[] = {
-    0
+     NvOdmVideoInputPinMap_Config2 //renn add for camera issue
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Display[] = {
@@ -154,11 +155,11 @@ static const NvU32 s_NvOdmPinMuxConfig_BacklightPwm[] = {
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Crt[] = {
-    NvOdmCrtPinMap_Config1,
+    0,
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_Tvo[] = {
-    NvOdmTvoPinMap_Config1,
+    0,
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_OneWire[] = {
@@ -166,7 +167,7 @@ static const NvU32 s_NvOdmPinMuxConfig_OneWire[] = {
 };
 
 static const NvU32 s_NvOdmPinMuxConfig_PciExpress[] = {
-    NvOdmPciExpressPinMap_Config1,
+    0,
 };
 
 void
@@ -270,13 +271,18 @@ NvOdmQueryPinMux(
         *pPinMuxConfigTable = s_NvOdmPinMuxConfig_Kbd;
         *pCount = NVODM_PINMUX_ARRAY_SIZE(s_NvOdmPinMuxConfig_Kbd);
         break;
-
+        
+    case NvOdmIoModule_VideoInput:
+        *pPinMuxConfigTable = s_NvOdmPinMuxConfig_VideoInput;
+        *pCount = NVODM_PINMUX_ARRAY_SIZE(s_NvOdmPinMuxConfig_VideoInput);
+        break;
+        
     case NvOdmIoModule_Twc:
     case NvOdmIoModule_Hsi:
     case NvOdmIoModule_Ata:
     case NvOdmIoModule_SyncNor:
     case NvOdmIoModule_Mio:
-    case NvOdmIoModule_VideoInput:
+    //case NvOdmIoModule_VideoInput:
     case NvOdmIoModule_OneWire:
         *pPinMuxConfigTable = NULL;
         *pCount = 0;
@@ -288,6 +294,13 @@ NvOdmQueryPinMux(
     }
 }
 
+static const NvU32 s_NvOdmFreq_Sdio[] = {
+24000,    //sdio0
+48000,    //sdio1
+48000,    //sdio2
+48000,    //sdio3
+};
+
 void
 NvOdmQueryClockLimits(
     NvOdmIoModule IoModule,
@@ -296,6 +309,12 @@ NvOdmQueryClockLimits(
 {
     switch (IoModule)
     {
+		//*
+	    case NvOdmIoModule_Sdio:
+	    *pClockSpeedLimits = s_NvOdmFreq_Sdio;
+	    *pCount = (sizeof(s_NvOdmFreq_Sdio) / sizeof(s_NvOdmFreq_Sdio[0]));
+	//     printk("[wgh] NvOdmQueryClockLimits %d\n",s_NvOdmFreq_Sdio[0]);
+	    break;//*/
         default:
             *pClockSpeedLimits = NULL;
             *pCount = 0;

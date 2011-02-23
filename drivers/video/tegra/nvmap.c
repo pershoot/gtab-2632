@@ -271,7 +271,7 @@ static int _nvmap_init_carveout(struct nvmap_carveout *co,
 	struct nvmap_mem_block *blocks = NULL;
 	int i;
 
-	num_blocks = min_t(unsigned int, len/1024, 1024);
+	num_blocks = min_t(unsigned int, len/1024, 2048);
 	blocks = vmalloc(sizeof(*blocks)*num_blocks);
 
 	if (!blocks) goto fail;
@@ -338,7 +338,7 @@ static void nvmap_zap_free(struct nvmap_carveout *co, int idx)
 	block->next_free = -1;
 }
 
-static void nvmap_split_block(struct nvmap_carveout *co,
+static int nvmap_split_block(struct nvmap_carveout *co,
 	int idx, size_t start, size_t size)
 {
 	if (BLOCK(co, idx)->base < start) {
@@ -363,12 +363,9 @@ static void nvmap_split_block(struct nvmap_carveout *co,
 				co->blocks[co->free_index].prev_free = spare_idx;
 			co->free_index = spare_idx;
 		} else {
-			if (block->prev != -1) {
-				spare = BLOCK(co, block->prev);
-				spare->size += start - block->base;
-				block->size -= (start - block->base);
-				block->base = start;
-			}
+			/* not being able to split is fatal here, because we need
+			 * to realign block->base */
+			return -ENOMEM;
 		}
 	}
 
@@ -394,6 +391,8 @@ static void nvmap_split_block(struct nvmap_carveout *co,
 	}
 
 	nvmap_zap_free(co, idx);
+
+	return 0;
 }
 
 #define next_spare next
@@ -482,16 +481,19 @@ static int nvmap_carveout_alloc(struct nvmap_carveout *co,
 		r_max = max_t(size_t, rjust - b->base, end - (rjust + size));
 
 		if (b->base + b->size >= ljust + size) {
-			if (l_max >= r_max)
-				nvmap_split_block(co, idx, ljust, size);
-			else
-				nvmap_split_block(co, idx, rjust, size);
-			break;
+			if (l_max >= r_max) {
+				if (!nvmap_split_block(co, idx, ljust, size))
+					break;
+			} else {
+				if (!nvmap_split_block(co, idx, rjust, size))
+					break;
+			}
 		}
 		idx = b->next_free;
 	}
 
 	spin_unlock(&co->lock);
+
 	return idx;
 }
 
@@ -1028,13 +1030,15 @@ void _nvmap_handle_free(struct nvmap_handle *h)
 			vm_unmap_ram(h->kern_map, h->size>>PAGE_SHIFT);
 		else {
 			unsigned long addr = (unsigned long)h->kern_map;
-			addr &= ~PAGE_MASK;
+			addr &= PAGE_MASK;
 			iounmap((void *)addr);
 		}
 	}
 
 	/* ensure that no stale data remains in the cache for this handle */
-	e = _nvmap_do_cache_maint(h, 0, h->size, NVMEM_CACHE_OP_WB_INV, false);
+	if (h->alloc)
+		e = _nvmap_do_cache_maint(h, 0, h->size, 
+			NVMEM_CACHE_OP_WB_INV, false);
 
 	if (h->alloc && !h->heap_pgalloc)
 		nvmap_carveout_free(h->carveout.co_heap, h->carveout.block_idx);
@@ -1830,6 +1834,14 @@ static int _nvmap_do_alloc(struct nvmap_file_priv *priv,
 		heap_mask &= NVMAP_SECURE_HEAPS;
 		if (!heap_mask) return -EINVAL;
 	}
+	else if ((numpages == 1) &&
+		(heap_mask & (NVMEM_HEAP_CARVEOUT_MASK | NVMEM_HEAP_IOVMM) !=
+		NVMEM_HEAP_CARVEOUT_IRAM)) {
+		// Non-secure single page iovmm and carveout allocations
+		// should be allowed to go to sysmem
+		heap_mask |= NVMEM_HEAP_SYSMEM;
+	}
+
 	/* can't do greater than page size alignment with page alloc */
 	if (align > PAGE_SIZE)
 		heap_mask &= NVMEM_HEAP_CARVEOUT_MASK;
@@ -2413,12 +2425,19 @@ static ssize_t _nvmap_do_rw_handle(struct nvmap_handle *h, int is_read,
 	}
 
 	while (count--) {
-		size_t ret = _nvmap_do_one_rw_handle(h, is_read,
+		size_t ret;
+		if (is_read)
+			_nvmap_do_cache_maint(h, h_offs, h_offs + elem_size,
+					NVMEM_CACHE_OP_INV, false);
+		ret = _nvmap_do_one_rw_handle(h, is_read,
 			is_user, h_offs, sys_addr, elem_size, &addr);
 		if (ret < 0) {
 			if (!bytes_copied) bytes_copied = ret;
 			break;
 		}
+		if (!is_read)
+			_nvmap_do_cache_maint(h, h_offs, h_offs + ret,
+					NVMEM_CACHE_OP_WB, false);
 		bytes_copied += ret;
 		if (ret < elem_size) break;
 		sys_addr += sys_stride;
@@ -2698,12 +2717,13 @@ static int _nvmap_try_create_preserved(struct nvmap_carveout *co,
 		struct nvmap_mem_block *b = BLOCK(co, idx);
 		unsigned long blk_end = b->base + b->size;
 		if (b->base <= base && blk_end >= end) {
-			nvmap_split_block(co, idx, base, size);
-			h->carveout.block_idx = idx;
-			h->carveout.base = co->blocks[idx].base;
-			h->carveout.co_heap = co;
-			h->alloc = true;
-			break;
+			if (!nvmap_split_block(co, idx, base, size)) {
+				h->carveout.block_idx = idx;
+				h->carveout.base = co->blocks[idx].base;
+				h->carveout.co_heap = co;
+				h->alloc = true;
+				break;
+			}
 		}
 		idx = b->next_free;
 	}
@@ -3379,7 +3399,7 @@ void nvmap_free(struct nvmap_handle *h, void *map)
 			vm_unmap_ram(map, h->size >> PAGE_SHIFT);
 		} else {
 			unsigned long addr = (unsigned long)map;
-			addr &= ~PAGE_MASK;
+			addr &= PAGE_MASK;
 			iounmap((void *)addr);
 		}
 		h->kern_map = NULL;

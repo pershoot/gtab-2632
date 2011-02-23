@@ -544,4 +544,23 @@ config TOUCHSCREEN_PCAP
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called pcap_ts.
+	 
+config TOUCHSCREEN_TEGRA_ODM_AK4183
+	boolean "Use AK4183 as touch screen controller"
+	depends on TOUCHSCREEN_TEGRA_ODM
+	default n
+	help
+		Say Y here if your borad choose AK4183 as your touch screen 
+		controller.
+		If not, say N.
+
+config TOUCHSCREEN_TEGRA_ODM_AT168
+	boolean "Use AT168 as touch screen controller"
+	depends on TOUCHSCREEN_TEGRA_ODM
+	default n
+	help
+		Say Y here if your borad choose AT168 as your touch screen 
+		controller.
+		If not, say N.
+		
 endif

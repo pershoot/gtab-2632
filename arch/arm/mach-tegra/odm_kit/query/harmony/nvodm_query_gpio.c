@@ -101,8 +101,8 @@ static const NvOdmGpioPinInfo s_display[] = {
 
     /* Panel 5 -- firefly p1138 lvds interface */
     {NVODM_GPIO_INVALID_PORT, NVODM_GPIO_INVALID_PIN, NvOdmGpioPinActiveState_Low},
-    { NVODM_PORT('b'), 4, NvOdmGpioPinActiveState_High },   // LCD_BL_PWM
-    { NVODM_PORT('b'), 5, NvOdmGpioPinActiveState_High },   // LCD_BL_EN
+    { NVODM_PORT('w'), 0, NvOdmGpioPinActiveState_High },   // LCD_BL_PWM
+    { NVODM_PORT('d'), 3, NvOdmGpioPinActiveState_High },   // LCD_BL_EN
     { NVODM_PORT('c'), 6, NvOdmGpioPinActiveState_High },   // EN_VDD_PNL
 };
 
@@ -121,13 +121,16 @@ static const NvOdmGpioPinInfo s_crt[] =
 static const NvOdmGpioPinInfo s_sdio[] = {
     {NVODM_PORT('i'), 5, NvOdmGpioPinActiveState_Low},    // Card Detect for SDIO instance 2
     /* High for WP and low for read/write */
-    {NVODM_PORT('h'), 1, NvOdmGpioPinActiveState_High},    // Write Protect for SDIO instance 2 
+    //deleted by navy
+    //{NVODM_PORT('h'), 1, NvOdmGpioPinActiveState_High},    // Write Protect for SDIO instance 2 
+    {NVODM_PORT('d'), 0, NvOdmGpioPinActiveState_High}, //for enable sd card power	
+    {0, 0, NvOdmGpioPinActiveState_High},//used for identify
 };
 
 static const NvOdmGpioPinInfo s_sdio3[] = {
-    {NVODM_PORT('h'), 2, NvOdmGpioPinActiveState_Low},    // Card Detect for SDIO instance 3
+    //{NVODM_PORT('h'), 2, NvOdmGpioPinActiveState_Low},    // Card Detect for SDIO instance 3
     /* High for WP and low for read/write */
-    {NVODM_PORT('h'), 3, NvOdmGpioPinActiveState_High},    // Write Protect for SDIO instance 3
+    //{NVODM_PORT('h'), 3, NvOdmGpioPinActiveState_High},    // Write Protect for SDIO instance 3
 };
 
 static const NvOdmGpioPinInfo s_NandFlash[] = {
@@ -160,23 +163,32 @@ static const NvOdmGpioPinInfo s_WakeFromKeyBoard[] = {
 
 // Gpio based keypad
 static const NvOdmGpioPinKeyInfo s_GpioPinKeyInfo[] = {
-    {KEY_MENU, 10, NV_TRUE},
-    {KEY_HOME, 10, NV_TRUE},
-    {KEY_BACK, 10, NV_TRUE},
-    {KEY_F3, 10, NV_TRUE},
-    {KEY_F4, 10, NV_TRUE},
-    {KEY_MENU, 10, NV_TRUE},
+    //{KEY_MENU, 10, NV_TRUE},
+    //{KEY_HOME, 10, NV_TRUE},
+    //{KEY_BACK, 10, NV_TRUE},
+    //{KEY_F3, 10, NV_TRUE},
+    //{KEY_F4, 10, NV_TRUE},
+    //{KEY_MENU, 10, NV_TRUE},
+	//{KEY_VOLUMEUP, 10, NV_TRUE},
+	{KEY_VOLUMEUP, 10, NV_TRUE},
+	{KEY_VOLUMEDOWN, 10, NV_TRUE},
+	{KEY_F4, 10, NV_TRUE},
 };
 
 
 // Gpio based keypad
 static const NvOdmGpioPinInfo s_GpioKeyBoard[] = {
+	{NVODM_PORT('v'), 4, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[0]},
+    	{NVODM_PORT('d'), 4, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[1]},
+	{NVODM_PORT('v'), 2, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[2]},
+	/*
     {NVODM_PORT('q'), 0, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[0]},
     {NVODM_PORT('q'), 1, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[1]},
     {NVODM_PORT('q'), 2, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[2]},
     {NVODM_PORT('q'), 3, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[3]},
     {NVODM_PORT('q'), 4, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[4]},
     {NVODM_PORT('v'), 2, NvOdmGpioPinActiveState_Low, (void *)&s_GpioPinKeyInfo[5]},
+	*/
 };
 
 static const NvOdmGpioPinInfo s_Battery[] = {
@@ -203,16 +215,22 @@ const NvOdmGpioPinInfo *NvOdmQueryGpioPinMap(NvOdmGpioPinGroup Group,
             return s_crt;
 
         case NvOdmGpioPinGroup_Sdio:
-            if (Instance == 1)
+		
+            if (Instance == 2)
             {
                 *pCount = NVODM_ARRAY_SIZE(s_sdio);
                 return s_sdio;
-            }
-            else if (Instance == 3)
+            }/*
+	    else if (Instance == 3)
             {
                 *pCount = NVODM_ARRAY_SIZE(s_sdio3);
                 return s_sdio3;
             }
+	    else// if (Instance == 0)
+            {
+                *pCount = NVODM_ARRAY_SIZE(s_sdio0);
+                return s_sdio0;
+            }*/
             else
             {
                 *pCount = 0;
@@ -257,6 +275,11 @@ const NvOdmGpioPinInfo *NvOdmQueryGpioPinMap(NvOdmGpioPinGroup Group,
             return s_WakeFromKeyBoard;
 
         case NvOdmGpioPinGroup_keypadMisc:
+            //add by navy
+            *pCount = NVODM_ARRAY_SIZE(s_GpioKeyBoard);
+            return s_GpioKeyBoard;
+            
+            //add end
             if (NvOdmPeripheralGetBoardInfo(EEPROM_ID_E1206, &BoardInfo))
             {
                 *pCount = NVODM_ARRAY_SIZE(s_GpioKeyBoard);

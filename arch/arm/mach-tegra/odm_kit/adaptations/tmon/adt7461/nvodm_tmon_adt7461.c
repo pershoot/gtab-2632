@@ -414,7 +414,7 @@ NvBool Adt7461Init(NvOdmTmonDeviceHandle hTmon)
     NvOdmIoModule I2cModule = NvOdmIoModule_Num;    // Inavlid module
     const ADT7461RegisterInfo* pReg = NULL;
     ADT7461PrivData* pPrivData = NULL;
-    
+    //return NV_FALSE;
     NV_ASSERT(hTmon && hTmon->pConn && hTmon->pConn->AddressList);
     
     // Allocate and clear priavte data
@@ -683,6 +683,15 @@ Adt7461TemperatureGet(
         return NV_FALSE;
 
     *pDegreesC = ADT7461_T_DATA_TO_VALUE(ExtRange, Data);
+	/*
+    NVODM_ADT7461_PRINTF(("Adt7461TemperatureGet ChannelId=%d,ExtRange=%d,Data=%d,ZoneId=%d,t=%d\n",ChannelId,ExtRange,Data,ZoneId,*pDegreesC));
+
+    pReg = &pPrivData->pDeviceInfo->Channels[1].Tdata;
+
+    if(!Adt7461ReadReg(pPrivData, pReg, &Data))
+        return NV_FALSE;
+    NVODM_ADT7461_PRINTF(("Adt7461TemperatureGet ChannelId=1,Data=%d\n",Data));//*/
+
     return NV_TRUE;
 }
 

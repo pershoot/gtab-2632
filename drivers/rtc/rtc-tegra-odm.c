@@ -33,12 +33,26 @@
 
 #define PMU_IOCTL_ENABLE  1
 
+#define SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC  (1)
+
 /* Create a custom rtc structrue and move this to that structure */
 static NvOdmPmuDeviceHandle hPmu = NULL;
+
+#if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
+extern int internal_tegra_rtc_read_time(struct rtc_time *tm);
+extern int internal_tegra_rtc_set_time(struct rtc_time *tm);
+extern int internal_tegra_rtc_read_alarm(struct rtc_wkalrm *t);
+extern int internal_tegra_rtc_set_alarm(struct rtc_wkalrm *t);
+#endif
 
 static int tegra_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
 	NvU32 now;
+#if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
+        struct rtc_time iner_rtc_tm;
+        unsigned long iner_now;
+        int ret = 0;
+#endif
 
 	if (hPmu == NULL)
 		return -1;
@@ -49,7 +63,21 @@ static int tegra_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	}
 
 	rtc_time_to_tm(now, tm);
+
+#if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
+        /* Read internal RTC time, if there are different, set internal rtc with external rtc time */
+        ret = internal_tegra_rtc_read_time(&iner_rtc_tm);
+        if(ret) return ret;
+        
+        ret = rtc_tm_to_time(&iner_rtc_tm, &iner_now);
+        if((ret == 0) && (now != iner_now)) {
+                ret = internal_tegra_rtc_set_time(tm); /* Set internal rtc with external rtc time */
+        }
+
+        return ret;
+#else
 	return 0;
+#endif
 }
 
 static int tegra_rtc_set_time(struct device *dev, struct rtc_time *tm)
@@ -68,7 +96,12 @@ static int tegra_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		printk("NvOdmPmuWriteRtc failed\n");
 		return -1;
 	}
+
+#if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
+        return internal_tegra_rtc_set_time(tm);
+#else
 	return 0;
+#endif
 }
 
 #if (PMU_IOCTL_ENABLE)
@@ -83,7 +116,11 @@ static int tegra_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 
 	rtc_time_to_tm(alarm_sec, time);
 
+#if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
+        return internal_tegra_rtc_read_alarm(wkalrm); /* ???? */
+#else
 	return 0;
+#endif
 }
 
 static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
@@ -122,7 +159,11 @@ static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 	if(!NvOdmPmuWriteAlarm(hPmu, alarm_sec-now))
 		return -EINVAL;
 
+#if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
+        return internal_tegra_rtc_set_alarm(wkalrm);
+#else
 	return 0;
+#endif
 }
 #endif
 

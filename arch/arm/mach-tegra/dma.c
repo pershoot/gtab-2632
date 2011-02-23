@@ -33,6 +33,7 @@
 #include <mach/irqs.h>
 #include <mach/iomap.h>
 
+#define TRASNFER_STATUS_BY_GLOBAL_DISABLE       1
 #define APB_DMA_GEN				0x000
 #define GEN_ENABLE				(1<<31)
 
@@ -53,6 +54,7 @@
 #define CSR_REQ_SEL_MASK			(0x1F<<CSR_REQ_SEL_SHIFT)
 #define CSR_WCOUNT_SHIFT			2
 #define CSR_WCOUNT_MASK				0xFFFC
+#define CSR_REQ_SEL_INVALID			(31<<CSR_REQ_SEL_SHIFT)
 
 #define APB_DMA_CHAN_STA				0x004
 #define STA_BUSY				(1<<31)
@@ -131,6 +133,12 @@ struct tegra_dma_channel {
 };
 
 #define  NV_DMA_MAX_CHANNELS  32
+
+#if defined(BLUETOOTH_DMA_PATCH)
+#if TRASNFER_STATUS_BY_GLOBAL_DISABLE
+static DEFINE_SPINLOCK(global_dma_bit_access_lock);
+#endif
+#endif
 
 static DECLARE_BITMAP(channel_usage, NV_DMA_MAX_CHANNELS);
 static struct tegra_dma_channel dma_channels[NV_DMA_MAX_CHANNELS];
@@ -222,9 +230,78 @@ static unsigned int dma_active_count(struct tegra_dma_channel *ch,
 
 	return bytes_transferred;
 }
+#if defined(BLUETOOTH_DMA_PATCH)
+static unsigned int get_channel_status(struct tegra_dma_channel *ch,
+			struct tegra_dma_req *req, bool is_stop_dma)
+{
+	unsigned int status;
+#if TRASNFER_STATUS_BY_GLOBAL_DISABLE
+	unsigned long g_irq_flags;
+	void __iomem *addr = IO_ADDRESS(TEGRA_APB_DMA_BASE);
+#else
+	unsigned int csr;
+	unsigned int status_before;
+	unsigned int status_after;
+	unsigned int wc_before;
+	unsigned int wc_after;
+	unsigned int wc_req;
+#endif
+
+	if (is_stop_dma) {
+#if TRASNFER_STATUS_BY_GLOBAL_DISABLE
+		/* STOP the DMA and get the transfer count.
+		 * Getting the transfer count is tricky.
+		 *  - Globally disable DMA on all channels
+		 *  - Read the channel's status register to know the number of pending
+		 *    bytes to be transfered.
+		 *  - Stop the dma channel
+		 *  - Globally re-enable DMA to resume other transfers
+		 */
+		spin_lock_irqsave(&global_dma_bit_access_lock, g_irq_flags);
+		writel(0, addr + APB_DMA_GEN);
+		status = readl(ch->addr + APB_DMA_CHAN_STA);
+		tegra_dma_stop(ch);
+		writel(GEN_ENABLE, addr + APB_DMA_GEN);
+		spin_unlock_irqrestore(&global_dma_bit_access_lock, g_irq_flags);
+#else
+		csr = ch->csr;
+		status_before = readl(ch->addr + APB_DMA_CHAN_STA);
+		csr &= ~CSR_REQ_SEL_MASK;
+		csr |= CSR_REQ_SEL_INVALID;
+
+		/* Set the enable as that is not shadowed */
+		csr |= CSR_ENB;
+		writel(csr, ch->addr + APB_DMA_CHAN_CSR);
+		status_after = readl(ch->addr + APB_DMA_CHAN_STA);
+
+		tegra_dma_stop(ch);
+		wc_before = (status_before & STA_COUNT_MASK) >> STA_COUNT_SHIFT;
+		wc_after = (status_after & STA_COUNT_MASK) >> STA_COUNT_SHIFT;
+		wc_req = (csr & STA_COUNT_MASK) >> STA_COUNT_SHIFT;
+
+		if ((!wc_before) && ( wc_after == wc_req))
+			status = status_before;
+		else
+			status = status_after;
+#endif
+		if (status & STA_ISE_EOC) {
+			pr_err("Got Dma Int here clearing");
+			writel(status, ch->addr + APB_DMA_CHAN_STA);
+		}
+		req->status = TEGRA_DMA_REQ_STOPPED;
+	} else {
+		status = readl(ch->addr + APB_DMA_CHAN_STA);
+		if (status & STA_ISE_EOC) {
+			pr_err("Got Dma Int here clearing");
+			writel(status, ch->addr + APB_DMA_CHAN_STA);
+		}
+	}
+	return status;
+}
+#endif
 
 unsigned int tegra_dma_transferred_req(struct tegra_dma_channel *ch,
-       struct tegra_dma_req *req)
+			struct tegra_dma_req *req)
 {
 	unsigned long irq_flags;
 	unsigned int bytes_transferred;
@@ -246,17 +323,90 @@ unsigned int tegra_dma_transferred_req(struct tegra_dma_channel *ch,
 }
 EXPORT_SYMBOL(tegra_dma_transferred_req);
 
+#if defined(BLUETOOTH_DMA_PATCH)
+int tegra_dma_get_transfer_count(struct tegra_dma_channel *ch,
+			struct tegra_dma_req *req, bool is_stop_dma)
+{
+	unsigned int status;
+	unsigned long irq_flags;
+	int bytes_transferred = 0;
+
+	spin_lock_irqsave(&ch->lock, irq_flags);
+
+	if (list_entry(ch->list.next, struct tegra_dma_req, node) != req) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		pr_err("The dma request is not running\n");
+		return -1;
+	}
+
+	if (req->status != TEGRA_DMA_REQ_INFLIGHT) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		pr_err("The dma request is not running\n");
+		return -1;
+	}
+	status = get_channel_status(ch, req, is_stop_dma);
+	bytes_transferred = dma_active_count(ch, req, status);
+	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	return bytes_transferred;
+}
+EXPORT_SYMBOL(tegra_dma_get_transfer_count);
+
+int tegra_dma_start_dma(struct tegra_dma_channel *ch, struct tegra_dma_req *req)
+{
+	unsigned int csr;
+	unsigned int status;
+	unsigned long irq_flags;
+
+	spin_lock_irqsave(&ch->lock, irq_flags);
+
+	if (list_entry(ch->list.next, struct tegra_dma_req, node)!=req) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		pr_err("The dma request is not on top request\n");
+		return -1;
+	}
+
+	if (req->status != TEGRA_DMA_REQ_STOPPED) {
+		spin_unlock_irqrestore(&ch->lock, irq_flags);
+		pr_err("Dma state is not in STOPPED\n");
+		return -1;
+	}
+
+	/* clear interrupt if already there */
+	status = readl(ch->addr + APB_DMA_CHAN_STA);
+	if (status & STA_ISE_EOC)
+		writel(status, ch->addr + APB_DMA_CHAN_STA);
+
+	csr = ch->csr;
+	csr |= CSR_IE_EOC;
+	writel(csr, ch->addr + APB_DMA_CHAN_CSR);
+	ch->csr = csr;
+
+	req->bytes_transferred = 0;
+	req->status = TEGRA_DMA_REQ_INFLIGHT;
+	req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_EMPTY;
+
+	csr |= CSR_ENB;
+	writel(csr, ch->addr + APB_DMA_CHAN_CSR);
+	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	return 0;
+}
+EXPORT_SYMBOL(tegra_dma_start_dma);
+#endif
+
 int tegra_dma_dequeue_req(struct tegra_dma_channel *ch,
 	struct tegra_dma_req *_req)
 {
+	#if !defined(BLUETOOTH_DMA_PATCH)
 	static DEFINE_SPINLOCK(enable_lock);
+	#endif
 	struct tegra_dma_req *req = NULL;
 	int found = 0;
 	unsigned int status;
 	unsigned long irq_flags;
 	int stop = 0;
+	#if !defined(BLUETOOTH_DMA_PATCH)
 	void __iomem *addr = IO_ADDRESS(TEGRA_APB_DMA_BASE);
-
+	#endif
 	spin_lock_irqsave(&ch->lock, irq_flags);
 
 	if (list_entry(ch->list.next, struct tegra_dma_req, node)==_req)
@@ -276,7 +426,9 @@ int tegra_dma_dequeue_req(struct tegra_dma_channel *ch,
 
 	if (!stop)
 		goto skip_status;
-
+	#if defined(BLUETOOTH_DMA_PATCH)
+	status = get_channel_status(ch, req, true);
+	#else
 	/* STOP the DMA and get the transfer count.
 	 * Getting the transfer count is tricky.
 	 *  - Globally disable DMA on all channels
@@ -292,7 +444,8 @@ int tegra_dma_dequeue_req(struct tegra_dma_channel *ch,
 	tegra_dma_stop(ch);
 	writel(GEN_ENABLE, addr + APB_DMA_GEN);
 	spin_unlock(&enable_lock);
-
+	#endif
+	
 	req->bytes_transferred = dma_active_count(ch, req, status);
 
 	if (!list_empty(&ch->list)) {
@@ -576,6 +729,13 @@ static void tegra_dma_init_hw(struct tegra_dma_channel *ch)
 static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 {
 	struct tegra_dma_req *req;
+	#if defined(BLUETOOTH_DMA_PATCH)
+		spin_lock(&ch->lock);
+	if (list_empty(&ch->list)) {
+		spin_unlock(&ch->lock);
+		return;
+	}
+	#else
 	unsigned long irq_flags;
 
 	spin_lock_irqsave(&ch->lock, irq_flags);
@@ -583,7 +743,8 @@ static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 		spin_unlock_irqrestore(&ch->lock, irq_flags);
 		return;
 	}
-
+	#endif
+	
 	req = list_entry(ch->list.next, typeof(*req), node);
 	if (req) {
 		int bytes_transferred;
@@ -596,13 +757,21 @@ static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 		list_del(&req->node);
 		req->bytes_transferred = bytes_transferred;
 		req->status = TEGRA_DMA_REQ_SUCCESS;
-
+		#if defined(BLUETOOTH_DMA_PATCH)
+		spin_unlock(&ch->lock);
+		/* Callback should be called without any lock */
+		pr_debug("%s: transferred %d bytes\n", __func__,
+			req->bytes_transferred);
+		req->complete(req);
+		spin_lock(&ch->lock);
+		#else
 		spin_unlock_irqrestore(&ch->lock, irq_flags);
 		/* Callback should be called without any lock */
 		pr_debug("%s: transferred %d bytes\n", __func__,
 			req->bytes_transferred);
 		req->complete(req);
 		spin_lock_irqsave(&ch->lock, irq_flags);
+		#endif
 	}
 
 	if (!list_empty(&ch->list)) {
@@ -612,13 +781,24 @@ static void handle_oneshot_dma(struct tegra_dma_channel *ch)
 		if (req->status != TEGRA_DMA_REQ_INFLIGHT)
 			tegra_dma_update_hw(ch, req);
 	}
+	#if defined(BLUETOOTH_DMA_PATCH)
+	spin_unlock(&ch->lock);
+	#else
 	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	#endif
 }
 
 static void handle_continuous_dma(struct tegra_dma_channel *ch)
 {
 	struct tegra_dma_req *req;
 	struct tegra_dma_req *next_req;
+	#if defined(BLUETOOTH_DMA_PATCH)
+	spin_lock(&ch->lock);
+	if (list_empty(&ch->list)) {
+		spin_unlock(&ch->lock);
+		return;
+	}
+	#else
 	unsigned long irq_flags;
 
 	spin_lock_irqsave(&ch->lock, irq_flags);
@@ -626,7 +806,7 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 		spin_unlock_irqrestore(&ch->lock, irq_flags);
 		return;
 	}
-
+	#endif
 	req = list_entry(ch->list.next, typeof(*req), node);
 	if (req) {
 		if (req->buffer_status == TEGRA_DMA_REQ_BUF_STATUS_EMPTY) {
@@ -657,14 +837,34 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 				}
 
 				list_del(&req->node);
-
+				#if defined(BLUETOOTH_DMA_PATCH)
+				/* DMA lock is NOT held when callbak is called */
+				spin_unlock(&ch->lock);
+				#else
 				/* DMA lock is NOT held when callbak is called */
 				spin_unlock_irqrestore(&ch->lock, irq_flags);
+				#endif
 				req->complete(req);
 				return;
 			}
 			/* Load the next request into the hardware, if available
 			 * */
+			 #if defined(BLUETOOTH_DMA_PATCH)
+			 if (ch->mode != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
+				if (!list_is_last(&req->node, &ch->list)) {
+					next_req = list_entry(req->node.next,
+						typeof(*next_req), node);
+					tegra_dma_update_hw_partial(ch, next_req);
+				}
+				req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL;
+				req->status = TEGRA_DMA_REQ_SUCCESS;
+			} else {
+				req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_HALF_FULL;
+				req->status = TEGRA_DMA_REQ_INFLIGHT;
+			}
+			/* DMA lock is NOT held when callback is called */
+			spin_unlock(&ch->lock);
+			 #else
 			if (!list_is_last(&req->node, &ch->list)) {
 				next_req = list_entry(req->node.next,
 					typeof(*next_req), node);
@@ -674,6 +874,7 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			req->status = TEGRA_DMA_REQ_SUCCESS;
 			/* DMA lock is NOT held when callback is called */
 			spin_unlock_irqrestore(&ch->lock, irq_flags);
+			#endif
 			if (likely(req->threshold))
 				req->threshold(req);
 			return;
@@ -692,6 +893,35 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_FULL;
 			req->bytes_transferred = bytes_transferred;
 			req->status = TEGRA_DMA_REQ_SUCCESS;
+			#if defined(BLUETOOTH_DMA_PATCH)
+			if (ch->mode != TEGRA_DMA_MODE_CONTINUOUS_SAME_BUFFER) {
+				if (list_is_last(&req->node, &ch->list)) {
+					tegra_dma_stop(ch);
+				} else {
+					/* It may be possible that req came after
+					 * half dma complete so it need to start
+					 * immediately */
+					next_req = list_entry(req->node.next,
+							typeof(*next_req), node);
+					if (next_req->status !=
+							TEGRA_DMA_REQ_INFLIGHT) {
+						tegra_dma_stop(ch);
+						tegra_dma_update_hw(ch, next_req);
+					}
+				}
+				list_del(&req->node);
+
+				/* DMA lock is NOT held when callbak is called */
+				spin_unlock(&ch->lock);
+				req->complete(req);
+			} else {
+				req->buffer_status = TEGRA_DMA_REQ_BUF_STATUS_EMPTY;
+				req->status = TEGRA_DMA_REQ_INFLIGHT;
+				spin_unlock(&ch->lock);
+				if (likely(req->threshold))
+					req->threshold(req);
+			}
+			#else
 			if (list_is_last(&req->node, &ch->list)) {
 				tegra_dma_stop(ch);
 			} else {
@@ -712,6 +942,7 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			/* DMA lock is NOT held when callbak is called */
 			spin_unlock_irqrestore(&ch->lock, irq_flags);
 			req->complete(req);
+			#endif
 			return;
 
 		} else {
@@ -720,9 +951,27 @@ static void handle_continuous_dma(struct tegra_dma_channel *ch)
 			BUG();
 		}
 	}
+	#if defined(BLUETOOTH_DMA_PATCH)
+	spin_unlock(&ch->lock);	
+	#else
 	spin_unlock_irqrestore(&ch->lock, irq_flags);
+	#endif
 }
 
+
+
+static irqreturn_t dma_thread_fn(int irq, void *data)
+{
+	struct tegra_dma_channel *ch = data;
+
+	if (ch->mode & TEGRA_DMA_MODE_ONESHOT)
+		handle_oneshot_dma(ch);
+	else
+		handle_continuous_dma(ch);
+
+
+	return IRQ_HANDLED;
+}
 static irqreturn_t dma_isr(int irq, void *data)
 {
 	struct tegra_dma_channel *ch = data;
@@ -737,20 +986,6 @@ static irqreturn_t dma_isr(int irq, void *data)
 	}
 	return IRQ_WAKE_THREAD;
 }
-
-static irqreturn_t dma_thread_fn(int irq, void *data)
-{
-	struct tegra_dma_channel *ch = data;
-
-	if (ch->mode & TEGRA_DMA_MODE_ONESHOT)
-		handle_oneshot_dma(ch);
-	else
-		handle_continuous_dma(ch);
-
-
-	return IRQ_HANDLED;
-}
-
 int __init tegra_dma_init(void)
 {
 	int ret = 0;

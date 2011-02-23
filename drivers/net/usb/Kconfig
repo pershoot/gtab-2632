@@ -377,4 +377,10 @@ config USB_CDC_PHONET
 	  cellular modem, as found on most Nokia handsets with the
 	  "PC suite" USB profile.
 
+config ERICSSON_F3307_ENABLE
+	tristate "Host for Ericsson F3307 module"
+	depends on USB_USBNET
+	help
+	  This option enables hosting "F3307" USB networking links.
+
 endmenu

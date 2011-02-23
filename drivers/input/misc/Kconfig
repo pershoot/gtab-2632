@@ -346,5 +346,29 @@ config INPUT_TEGRA_ODM_SCROLL
 	help
 	  Say Y here if you want to enable a scrollwheel input device node
 	  using the NVIDIA Tegra ODM kit scrollwheel adaptation interface
+	  
+config INPUT_GPS_CONTROL
+	boolean "Driver for control gps model"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
 
+config INPUT_DUMMY_SENSOR
+	boolean "Android dummy sensor"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC
+	help
+		This is an DUMMY SENSOR driver, the hal library will clal this to
+		tell the data thread to exit. Say Y.
+
+config INPUT_LIS35DE_ACCEL
+	boolean "Accelerometer for smba1101 LIS35DE"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC && INPUT_DUMMY_SENSOR
+	help
+		Say Y here to if you want to add driver for smba1101-lis35de 
+		accelerometer
+
+config INPUT_ISL29023_LS
+	boolean "Driver for ISL29023 light sensor (android)"
+	depends on ARCH_TEGRA && MACH_TEGRA_GENERIC && INPUT_DUMMY_SENSOR
+	help
+		Say Y here if you want to add driver for isl29023
+   
 endif

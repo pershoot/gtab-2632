@@ -156,7 +156,8 @@ static const NvOdmIoAddress s_VddHdmiAddresses[] =
 // MIPI voltage rail (DSI_CSI)
 static const NvOdmIoAddress s_VddMipiAddresses[] = 
 {
-    { NvOdmIoModule_Vdd, 0x00, Ext_TPS72012PmuSupply_LDO, 0  } /* AVDD_DSI_CSI -> VDD_1V2 */
+	{ NvOdmIoModule_Vdd, 0x00, 0 ,0}
+    //{ NvOdmIoModule_Vdd, 0x00, Ext_TPS72012PmuSupply_LDO, 0  } /* AVDD_DSI_CSI -> VDD_1V2 */
 };
 
 // LCD voltage rail
@@ -209,13 +210,15 @@ static const NvOdmIoAddress s_VddSdioAddresses[] =
 // VDAC voltage rail
 static const NvOdmIoAddress s_VddVdacAddresses[] = 
 {
-    { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO6, 0 } /* AVDD_VDAC -> LDO6 */
+	{ NvOdmIoModule_Vdd, 0x00, 0 ,0}
+    //{ NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO6, 0 } /* AVDD_VDAC -> LDO6 */
 };
 
 // VI voltage rail
 static const NvOdmIoAddress s_VddViAddresses[] = 
 {
-    { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO3, 0 } /* VDDIO_VI -> derived from LDO3 (VDD_3V3) */
+    //{ NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO3, 0 } /* VDDIO_VI -> derived from LDO3 (VDD_3V3) */
+	{ NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO9, 0 } /* VDDIO_VI -> derived from LDO3 (VDD_3V3) */
 };
 
 // BB voltage rail
@@ -234,9 +237,10 @@ static const NvOdmIoAddress s_VddSocAddresses[]=
 // PEX_CLK voltage rail
 static const NvOdmIoAddress s_VddPexClkAddresses[] = 
 {
-    { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO0, 0 }, /* VDDIO_PEX_CLK -> LDO0 */
-    { NvOdmIoModule_Vdd, 0x00, Ext_TPS62290PmuSupply_BUCK, 0 }, /* AVDD_PLLE -> VDD_1V05 */
-    { NvOdmIoModule_Vdd, 0x00, Ext_TPS74201PmuSupply_LDO, 0 }, /* PMU_GPIO-1 -> VDD_1V5 */
+    { NvOdmIoModule_Vdd, 0x00, 0 ,0}
+	//{ NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO0, 0 }, /* VDDIO_PEX_CLK -> LDO0 */
+    //{ NvOdmIoModule_Vdd, 0x00, Ext_TPS62290PmuSupply_BUCK, 0 }, /* AVDD_PLLE -> VDD_1V05 */
+    //{ NvOdmIoModule_Vdd, 0x00, Ext_TPS74201PmuSupply_LDO, 0 }, /* PMU_GPIO-1 -> VDD_1V5 */
 };
 
 // PMU0
@@ -246,11 +250,11 @@ static const NvOdmIoAddress s_Pmu0Addresses[] =
 };
 
 static const NvOdmIoAddress s_Vddio_Vid_En[] = {
-    { NvOdmIoModule_Gpio, 't'-'a', 2, 0 },
+    { NvOdmIoModule_Gpio, 'd'-'a', 1, 0 },
 };
 
 static const NvOdmIoAddress s_Vddio_Sd_En[] = {
-    { NvOdmIoModule_Gpio, 't'-'a', 3, 0 },
+    { NvOdmIoModule_Gpio, 'd'-'a', 0, 0 },
 };
 
 static const NvOdmIoAddress s_Vddio_Sdmmc_En[] = {
@@ -348,7 +352,7 @@ static const NvOdmIoAddress s_ffaVideoDacAddresses[] =
 // Sdio
 static const NvOdmIoAddress s_SdioAddresses[] =
 {
-    { NvOdmIoModule_Sdio, 0x1,  0x0, 0 },                      /* SD Memory on SD Bus */
+    { NvOdmIoModule_Sdio, 0x2,  0x0, 0 },                      /* SD Memory on SD Bus */
     { NvOdmIoModule_Sdio, 0x3,  0x0, 0 },                      /* SD Memory on SD Bus */
     { NvOdmIoModule_Vdd,  0x00, Ext_SWITCHPmuSupply_VDDIO_SD, 0 },   /* EN_VDDIO_SD */
     { NvOdmIoModule_Vdd, 0x00, TPS6586xPmuSupply_LDO3, 0 } /* VDDIO_SDIO -> derived from LDO3 (VDD_3V3) */
@@ -359,7 +363,7 @@ static const NvOdmIoAddress s_I2cSmbusAddresses[] =
     { NvOdmIoModule_I2c, 2, 0x8A, 0 },
     { NvOdmIoModule_Gpio, 27, 1, 0} //Port BB:01 is used on harmony. 
 };
-
+#if 0
 static const NvOdmIoAddress s_UsbMuxAddress[] = 
 {
     {NvOdmIoModule_Usb, 1, 0, 0}
@@ -399,6 +403,7 @@ static const NvOdmIoAddress s_QwertyKeyPad16x8Addresses[] =
     { NvOdmIoModule_Kbd, 0x01, NvOdmKbcGpioPin_KBCol6, 0}, // Column 6
     { NvOdmIoModule_Kbd, 0x01, NvOdmKbcGpioPin_KBCol7, 0}, // Column 7
 };
+#endif
 
 
 static const NvOdmIoAddress s_Tmon0Addresses[] = 
@@ -447,6 +452,7 @@ static const NvOdmIoAddress s_AudioCodecAddressesI2C_1[] =
                                                  /* Codec I2C address is 0x34 */
 };
 
+#if 0
 // TouchPanel
 static const NvOdmIoAddress s_TouchPanelAddresses[] = 
 {
@@ -464,5 +470,27 @@ static const NvOdmIoAddress s_KXTFAcceleroAddresses[] =
 {
     { NvOdmIoModule_I2c_Pmu, 0x00, 0x1E, 0 }, /* I2C address (7-bit) 0xF<<1 = 0x1E(8-bit) */
     { NvOdmIoModule_Gpio, (NvU32)'c'-'a', 0x03, 0 }, /* Gpio port C and Pin 3 */
+};
+#endif
+
+// AK4183 TouchScreen
+static const NvOdmIoAddress s_AK4183Address[] =
+{
+	{ NvOdmIoModule_I2c, 0, 0x90 ,0},
+	{ NvOdmIoModule_Gpio, (NvU32)'j'-'a', 7 ,0},
+};
+
+// AT168 TouchScreen
+static const NvOdmIoAddress s_AT168Address[] =
+{
+	{ NvOdmIoModule_I2c, 0, 0x5c ,0},
+	{ NvOdmIoModule_Gpio, (NvU32)'h'-'a', 1 ,0},	//Please set PH1 reset and must be first Gpio
+	{ NvOdmIoModule_Gpio, (NvU32)'j'-'a', 7 ,0}	//Please set PJ7 Interrupt and must be second Gpio
+};
+
+const NvOdmIoAddress s_Bq24745Address[] = 
+{
+	{ NvOdmIoModule_I2c, 0, 0x12 ,0},					/* FIXME: Is address right? */
+	{ NvOdmIoModule_Gpio, 'v'-'a', 3 ,0},				/* ACOK */
 };
 

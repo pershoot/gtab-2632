@@ -38,6 +38,11 @@
 
 #define DRIVER_DESC "NVIDIA Tegra SDHCI compliant driver"
 #define DRIVER_NAME "tegra-sdhci"
+//#define MMC_PATCH_1
+
+#ifdef MMC_PATCH_1
+static atomic_t detect_lock;
+#endif
 
 struct tegra_sdhci {
 	struct platform_device	*pdev;
@@ -50,11 +55,16 @@ struct tegra_sdhci {
 	int			irq_cd;
 	int			gpio_wp;
 	int			gpio_polarity_wp;
+    //add by navy
+    int gpio_en; /*card power enable, -1 if unused */
+    int gpio_polarity_en; /* active state for enable*/
+    //add end
 	unsigned int		debounce;
 	unsigned long		max_clk;
 	bool			card_present;
 	bool			clk_enable;
 	bool			card_always_on;
+	u32			sdhci_ints;
 };
 
 static inline unsigned long res_size(struct resource *res)
@@ -67,16 +77,57 @@ static int tegra_sdhci_enable_dma(struct sdhci_host *sdhost)
 	return 0;
 }
 
+#ifdef MMC_PATCH_1
+void sdhci_tegra_card_detect(unsigned long data)
+{
+        struct mmc_host *mmc = (struct mmc_host *)data;
+        struct sdhci_host *sdhost = mmc_priv(mmc);
+        struct tegra_sdhci *host = sdhci_priv(sdhost);
+
+        if(host->gpio_cd != -1) {
+                int cur_status = (gpio_get_value(host->gpio_cd)==host->gpio_polarity_cd);
+
+                if(cur_status != host->card_present) { /* Card is attached, but card_present indicates un-plug */
+                        printk("mchi : original status : %s, but now : %s =============\n", 
+                               host->card_present?"plug-in":"un-plug", 
+                               cur_status?"plug-in":"un-plug");
+                        host->card_present = (gpio_get_value(host->gpio_cd)==host->gpio_polarity_cd);
+                        
+                        if(host->gpio_en!=-1)
+                        {
+                                gpio_set_value(host->gpio_en,host->card_present?host->gpio_polarity_en:!host->gpio_polarity_en);
+                        }
+                        smp_wmb();
+
+                        sdhci_card_detect_callback(sdhost);
+                }
+
+                /* Ok, enable the interrupt */
+                atomic_set(&detect_lock, 0);
+        }
+
+        printk("\n");
+}
+#endif
 static irqreturn_t card_detect_isr(int irq, void *dev_id)
 {
 	struct sdhci_host *sdhost = dev_id;
 	struct tegra_sdhci *host = sdhci_priv(sdhost);
 
+#ifdef MMC_PATCH_1
+	if(atomic_add_return(1, &detect_lock) != 1) {
+                return IRQ_HANDLED;   /* indicates the last attach/detach does not finish */
+        }
+#endif
+        
 	host->card_present =
 		(gpio_get_value(host->gpio_cd)==host->gpio_polarity_cd);
+        if(host->gpio_en!=-1)
+        {
+                gpio_set_value(host->gpio_en,host->card_present?host->gpio_polarity_en:!host->gpio_polarity_en);
+        }
 	smp_wmb();
 	sdhci_card_detect_callback(sdhost);
-
 	return IRQ_HANDLED;
 }
 
@@ -140,6 +191,8 @@ static struct sdhci_ops tegra_sdhci_ops = {
 	.set_clock		= tegra_sdhci_set_clock,
 };
 
+extern void Tps6586x_Resume_Isr_Register(void);
+
 int __init tegra_sdhci_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *sdhost;
@@ -147,6 +200,8 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	struct tegra_sdhci_platform_data *plat = pdev->dev.platform_data;
 	struct resource *res;
 	int ret = -ENODEV;
+        static int pmu_count=0;
+        int enable=0;
 
 	if (pdev->id == -1) {
 		dev_err(&pdev->dev, "dynamic instance assignment not allowed\n");
@@ -205,6 +260,10 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	host->gpio_polarity_cd = plat->gpio_polarity_cd;
 	host->gpio_wp = plat->gpio_nr_wp;
 	host->gpio_polarity_wp = plat->gpio_polarity_wp;
+	//add by navy
+    host->gpio_en = plat->gpio_nr_en;
+	host->gpio_polarity_en = plat->gpio_polarity_en;
+    //add end
 	host->card_always_on = plat->is_always_on;
 	dev_dbg(&pdev->dev, "write protect: %d card detect: %d\n",
 		host->gpio_wp, host->gpio_cd);
@@ -253,10 +312,40 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 			host->irq_cd = -1;
 			goto skip_gpio_cd;
 		}
+		#ifdef MMC_PATCH_1
+                atomic_set(&detect_lock, 0); // mchi
+		#endif
 		host->card_present =
 			(gpio_get_value(host->gpio_cd)==host->gpio_polarity_cd);
 	}
 skip_gpio_cd:
+    
+    //add by navy
+    ret = 0;
+    if (host->gpio_en != -1)
+    {
+        ret = gpio_request(host->gpio_en, "card_poweron");
+        if (ret < 0) {
+            dev_err(&pdev->dev, "request en gpio failed\n");
+            host->gpio_en = -1;
+            goto skip_gpio_en;
+        }
+        
+        ret = gpio_direction_output(host->gpio_en,0);
+        if (ret < 0) {
+            dev_err(&pdev->dev, "failed to configure GPIO\n");
+            gpio_free(host->gpio_en);
+            host->gpio_en = -1;
+            goto skip_gpio_en;
+        }
+
+        if((host->gpio_cd!=-1)&&host->card_present) enable=1;
+        else if(host->gpio_cd==-1) enable=1;
+        else enable =0;
+        gpio_set_value(host->gpio_en,enable?host->gpio_polarity_en:!host->gpio_polarity_en);
+
+    }
+skip_gpio_en:
 	ret = 0;
 	if (host->gpio_wp != -1) {
 		ret = gpio_request(host->gpio_wp, "write_protect");
@@ -317,6 +406,11 @@ skip_gpio_wp:
 	platform_set_drvdata(pdev, sdhost);
 
 	dev_info(&pdev->dev, "probe complete\n");
+
+        if(pmu_count==0) {
+                Tps6586x_Resume_Isr_Register();
+                pmu_count++;
+        }
 
 	return  0;
 
@@ -386,31 +480,24 @@ static int tegra_sdhci_remove(struct platform_device *pdev)
 #if defined(CONFIG_PM)
 #define dev_to_host(_dev) platform_get_drvdata(to_platform_device(_dev))
 
-static void tegra_sdhci_configure_interrupts(struct sdhci_host *sdhost, bool enable)
+static void tegra_sdhci_restore_interrupts(struct sdhci_host *sdhost)
 {
 	u32 ierr;
 	u32 clear = SDHCI_INT_ALL_MASK;
-	u32 set;
+	struct tegra_sdhci *host = sdhci_priv(sdhost);
 
-	if (enable) {
-		/* enable required MMC INTs */
-		set = SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT |
-		SDHCI_INT_DATA_CRC | SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_INDEX |
-		SDHCI_INT_END_BIT | SDHCI_INT_CRC | SDHCI_INT_TIMEOUT |
-		SDHCI_INT_DATA_END | SDHCI_INT_RESPONSE;
+	/* enable required interrupts */
+	ierr = sdhci_readl(sdhost, SDHCI_INT_ENABLE);
+	ierr &= ~clear;
+	ierr |= host->sdhci_ints;
+	sdhci_writel(sdhost, ierr, SDHCI_INT_ENABLE);
+	sdhci_writel(sdhost, ierr, SDHCI_SIGNAL_ENABLE);
 
-		ierr = sdhci_readl(sdhost, SDHCI_INT_ENABLE);
-		ierr &= clear;
-		ierr |= set;
-		sdhci_writel(sdhost, ierr, SDHCI_INT_ENABLE);
-		sdhci_writel(sdhost, ierr, SDHCI_SIGNAL_ENABLE);
-	} else {
-		/* disable the interrupts */
-		ierr = sdhci_readl(sdhost, SDHCI_INT_ENABLE);
-		/* Card interrupt masking is done by sdio client driver */
-		ierr &= SDHCI_INT_CARD_INT;
-		sdhci_writel(sdhost, ierr, SDHCI_INT_ENABLE);
-		sdhci_writel(sdhost, ierr, SDHCI_SIGNAL_ENABLE);
+	if ( (host->sdhci_ints & SDHCI_INT_CARD_INT) &&
+		(sdhost->quirks & SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP)) {
+		u8 gap_ctrl = sdhci_readb(sdhost, SDHCI_BLOCK_GAP_CONTROL);
+		gap_ctrl |= 0x8;
+		sdhci_writeb(sdhost, gap_ctrl, SDHCI_BLOCK_GAP_CONTROL);
 	}
 }
 
@@ -437,7 +524,7 @@ static int tegra_sdhci_restore(struct sdhci_host *sdhost)
 		mdelay(1);
 	}
 
-	tegra_sdhci_configure_interrupts(sdhost, true);
+	tegra_sdhci_restore_interrupts(sdhost);
 	sdhost->last_clk = 0;
 	return 0;
 }
@@ -449,17 +536,33 @@ static int tegra_sdhci_suspend(struct device *dev)
 	struct pm_message event = { PM_EVENT_SUSPEND };
 	int ret = 0;
 
-	if(host->card_always_on && is_card_sdio(sdhost->mmc->card)) {
+	if (host->card_always_on && is_card_sdio(sdhost->mmc->card)) {
 		struct mmc_ios ios;
 		ios.clock = 0;
 		ios.vdd = 0;
 		ios.power_mode = MMC_POWER_OFF;
 		ios.bus_width = MMC_BUS_WIDTH_1;
 		ios.timing = MMC_TIMING_LEGACY;
-		sdhost->mmc->ops->set_ios(sdhost->mmc, &ios);
 
-		/* Disable the interrupts */
-		tegra_sdhci_configure_interrupts(sdhost, false);
+		/* save interrupt status before suspending */
+		host->sdhci_ints = sdhci_readl(sdhost, SDHCI_INT_ENABLE);
+		sdhost->mmc->ops->set_ios(sdhost->mmc, &ios);
+		/* keep CARD_INT enabled - if used as wakeup source */
+		if (host->sdhci_ints & SDHCI_INT_CARD_INT) {
+			//u32 ier = sdhci_readl(host, SDHCI_INT_ENABLE);
+                        u32 ier = sdhci_readl(sdhost, SDHCI_INT_ENABLE);
+			ier |= SDHCI_INT_CARD_INT;
+			//sdhci_writel(host, ier, SDHCI_INT_ENABLE);
+                        sdhci_writel(sdhost, ier, SDHCI_INT_ENABLE);
+			//sdhci_writel(host, ier, SDHCI_SIGNAL_ENABLE);
+                        sdhci_writel(sdhost, ier, SDHCI_SIGNAL_ENABLE);
+
+			if (sdhost->quirks & SDHCI_QUIRK_ENABLE_INTERRUPT_AT_BLOCK_GAP) {
+				u8 gap_ctrl = sdhci_readb(sdhost, SDHCI_BLOCK_GAP_CONTROL);
+				gap_ctrl |= 0x8;
+				sdhci_writeb(sdhost, gap_ctrl, SDHCI_BLOCK_GAP_CONTROL);
+			}
+		}
 
 		return ret;
 	}
@@ -489,7 +592,7 @@ static int tegra_sdhci_resume(struct device *dev)
 	if(host->card_always_on && is_card_sdio(sdhost->mmc->card)) {
 		int ret = 0;
 
-		/* soft reset SD host controller and enable MMC INTs */
+		/* soft reset SD host controller and enable interrupts */
 		ret = tegra_sdhci_restore(sdhost);
 		if (ret) {
 			dev_err(dev, "failed to resume host\n");

@@ -23,6 +23,8 @@
 #include <linux/input.h>
 #include <linux/gpio_keys.h>
 #include <linux/workqueue.h>
+#include <linux/kernel.h>
+#include <linux/wakelock.h>
 
 #include <asm/gpio.h>
 
@@ -38,6 +40,9 @@ struct gpio_keys_drvdata {
 	struct gpio_button_data data[0];
 };
 
+static unsigned int f4_send_state = 0;
+struct wake_lock f4_wake_lock;
+
 static void gpio_keys_report_event(struct work_struct *work)
 {
 	struct gpio_button_data *bdata =
@@ -46,9 +51,49 @@ static void gpio_keys_report_event(struct work_struct *work)
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value(button->gpio) ? 1 : 0) ^ button->active_low;
+	
+	if(button->code!=KEY_F4) {
+		input_event(input, type, button->code, !!state);
+	} else {
+		if(f4_send_state == 1) { /* Special state for just Wake-Up from LP1 */
+                        printk("Send a simulate KEY_F4 **** \n");
+                        input_event(input, type, button->code, !!state);
+                        input_sync(input);
+                        mdelay(80);
+                        input_event(input, type, button->code, !!!state);
+                        input_sync(input);
 
-	input_event(input, type, button->code, !!state);
+                        f4_send_state = 0;
+                                                
+                        mdelay(300);
+
+                        input_event(input, type, button->code, !!state);
+                        input_sync(input);
+                        mdelay(80);
+                        input_event(input, type, button->code, !!!state);
+                        input_sync(input);
+
+                        input_event(input, type, KEY_BACK, !!state);
+                        input_sync(input);
+                        mdelay(80);
+                        input_event(input, type, KEY_BACK, !!!state);
+	        } else if (f4_send_state == 2) {
+                        f4_send_state = 0;
+
+                        input_event(input, type, KEY_BACK, !!state);
+                        input_sync(input);
+                        mdelay(80);
+                        input_event(input, type, KEY_BACK, !!!state);
+                } else if (f4_send_state == 3) { 
+                        f4_send_state = 0;
+                        input_event(input, type, button->code, !!!state);
+                } else {        /* Normal state */
+                        input_event(input, type, button->code, !!state);
+                }
+	}
+	
 	input_sync(input);
+	//printk("gpio_keys_report_event=%d,state=%d\n",button->code,!!state);
 }
 
 static void gpio_keys_timer(unsigned long _data)
@@ -58,11 +103,34 @@ static void gpio_keys_timer(unsigned long _data)
 	schedule_work(&data->work);
 }
 
+struct gpio_button_data *bdata_F4 =NULL;
+
+void F4_Deal(unsigned int wake_up_flag)
+{
+	if(bdata_F4 !=NULL)
+	{
+		struct gpio_button_data *bdata = bdata_F4;
+		struct gpio_keys_button *button = bdata->button;
+
+                f4_send_state = wake_up_flag;
+
+                if(wake_up_flag == 1) {
+                        wake_lock_timeout(&f4_wake_lock, (HZ * 5));
+                }
+
+		if (button->debounce_interval)
+			mod_timer(&bdata->timer,
+				jiffies + msecs_to_jiffies(button->debounce_interval));
+		else
+			schedule_work(&bdata->work);
+	}
+}
+
 static irqreturn_t gpio_keys_isr(int irq, void *dev_id)
 {
 	struct gpio_button_data *bdata = dev_id;
 	struct gpio_keys_button *button = bdata->button;
-
+	printk("gpio_keys_isr\n");
 	BUG_ON(irq != gpio_to_irq(button->gpio));
 
 	if (button->debounce_interval)
@@ -73,6 +141,8 @@ static irqreturn_t gpio_keys_isr(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+
+extern void Tps6586x_Resume_Isr_Register(void); 
 
 static int __devinit gpio_keys_probe(struct platform_device *pdev)
 {
@@ -120,6 +190,17 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			    gpio_keys_timer, (unsigned long)bdata);
 		INIT_WORK(&bdata->work, gpio_keys_report_event);
 
+		
+		printk("gpio_keys_report_event=%d\n",button->code);
+		if(button->code==KEY_F4)
+		{
+			printk("gpio_keys_probe KEY_F4=%d\n",KEY_F4);
+			bdata_F4 = bdata;
+                        wake_lock_init(&f4_wake_lock, WAKE_LOCK_SUSPEND, "gpio_f4_wake");
+			//Tps6586x_Resume_Isr_Register();
+		}
+		else
+		{
 		error = gpio_request(button->gpio, button->desc ?: "gpio_keys");
 		if (error < 0) {
 			pr_err("gpio-keys: failed to request GPIO %d,"
@@ -145,12 +226,13 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			gpio_free(button->gpio);
 			goto fail2;
 		}
-
 		error = request_irq(irq, gpio_keys_isr,
 				    IRQF_SHARED |
 				    IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 				    button->desc ? button->desc : "gpio_keys",
 				    bdata);
+		}
+
 		if (error) {
 			pr_err("gpio-keys: Unable to claim irq %d; error %d\n",
 				irq, error);
@@ -212,6 +294,8 @@ static int __devexit gpio_keys_remove(struct platform_device *pdev)
 
 	input_unregister_device(input);
 
+        wake_lock_destroy(&f4_wake_lock);
+        
 	return 0;
 }
 
@@ -242,6 +326,8 @@ static int gpio_keys_resume(struct device *dev)
 	struct gpio_keys_platform_data *pdata = pdev->dev.platform_data;
 	int i;
 
+        flush_scheduled_work();
+
 	if (device_may_wakeup(&pdev->dev)) {
 		for (i = 0; i < pdata->nbuttons; i++) {
 			struct gpio_keys_button *button = &pdata->buttons[i];
@@ -251,6 +337,11 @@ static int gpio_keys_resume(struct device *dev)
 			}
 		}
 	}
+
+        /* F4_Deal */
+        F4_Deal(2);
+
+        flush_scheduled_work();
 
 	return 0;
 }
