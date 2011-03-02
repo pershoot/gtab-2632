@@ -1944,7 +1944,7 @@ static int power_fs_sync(void)
 extern void F4_Deal(unsigned int wake_up_flag);
 extern void pmu_tegra_cpufreq_hotplug(bool onoff);
 extern unsigned int WAKE_UP_FROM_LP1_FLAG;
-struct timeval last_receive_time;       //Add for double click in 500ms; 2010-10-27
+struct timeval last_receive_time;       //Add for double click in 500ms; 2011-03-01
 extern unsigned int PM_SCREEN_IS_OFF;
 
 /* Interrupt function for Power Button*/
@@ -1972,10 +1972,10 @@ static void Resume_Isr(void *arg)
 
         do_gettimeofday(&start_time);
 
-        //Add for double click in 500ms; 2010-10-27
+        //Add for double click in 250ms; 2011-03-01
         if(WAKE_UP_FROM_LP1_FLAG != 1) {
                 if((( start_time.tv_sec == last_receive_time.tv_sec )) && 
-                   (( start_time.tv_usec - last_receive_time.tv_usec ) < 500000)) {
+                   (( start_time.tv_usec - last_receive_time.tv_usec ) < 250000)) {
                         goto left;
                 }
         }
@@ -2037,8 +2037,8 @@ static void Resume_Isr(void *arg)
                         }
                 }
 
-                /* Clear EXITSLREQ to 1(0x14, bit B1) in 6s */
-		if(((gpio_get_value(pinnum)& 0x1)) && (delatime < 6)) {
+                /* Clear EXITSLREQ to 1(0x14, bit B1) in 3s */
+		if(((gpio_get_value(pinnum)& 0x1)) && (delatime < 3)) {
                         if(WAKE_UP_FROM_LP1_FLAG == 1) { /* Release quickly and PMU flag is not set */
                                 /* Fixme : need clear PMU flag here although this flag is not set ? */
                                 printk("Release quickly(LP1) -->");
@@ -2096,7 +2096,7 @@ left:
         /* Ok, in this loop, clear WAKE_UP_FROM_LP1_FLAG */
         WAKE_UP_FROM_LP1_FLAG = 0;
 
-        //Add for double click in 500ms; 2010-10-27
+        //Add for double click in 250ms; 2011-03-01
         do_gettimeofday(&last_receive_time);
 
         atomic_set(&resume_isr_lock, 0);
