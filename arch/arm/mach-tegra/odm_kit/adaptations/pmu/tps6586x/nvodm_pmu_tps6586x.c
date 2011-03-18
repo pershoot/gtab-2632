@@ -1981,7 +1981,8 @@ static void Resume_Isr(void *arg)
         }
 
         /* If it's the press for wake-up, send out a "KEY_F4" */
-        if(WAKE_UP_FROM_LP1_FLAG == 1) {
+        if((WAKE_UP_FROM_LP1_FLAG == 1) && (delatime < 1)) {
+		do_gettimeofday(&last_receive_time);
                 printk("Send First KEY_F4(LP1) -->");
                 F4_Deal(1);     /* Send a simulate to upper  (PowerManager Service) */
         } else {
