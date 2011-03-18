@@ -2066,8 +2066,8 @@ static void Resume_Isr(void *arg)
                         }
 		}
 
-                /* If press duration is more than 5 seconds, power off device */
-		if(delatime >= 6) {
+                /* If press duration is more than 8 seconds, power off device */
+		if(delatime >= 8) {
                         data = 0x08;
                         
                         power_fs_sync();
