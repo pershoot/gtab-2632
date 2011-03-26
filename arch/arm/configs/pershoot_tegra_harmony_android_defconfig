@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.35
-# Thu Mar 24 16:13:57 2011
+# Sat Mar 26 14:20:54 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -236,6 +236,7 @@ CONFIG_TEGRA_LP2POLICY_IGNORE_LC=y
 CONFIG_TEGRA_ODM_HARMONY=y
 # CONFIG_TEGRA_ODM_VENTANA is not set
 # CONFIG_TEGRA_ODM_WHISTLER is not set
+# CONFIG_ZPAD_T2_NEWBL is not set
 
 #
 # Processor Type
