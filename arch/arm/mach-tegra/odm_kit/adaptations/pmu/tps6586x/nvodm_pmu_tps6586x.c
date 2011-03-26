@@ -2038,8 +2038,8 @@ static void Resume_Isr(void *arg)
                         }
                 }
 
-                /* Clear EXITSLREQ to 1(0x14, bit B1) in 2s */
-		if(((gpio_get_value(pinnum)& 0x1)) && (delatime < 2)) {
+                /* Clear EXITSLREQ to 1(0x14, bit B1) in 3s */
+		if(((gpio_get_value(pinnum)& 0x1)) && (delatime < 3)) {
                         if(WAKE_UP_FROM_LP1_FLAG == 1) { /* Release quickly and PMU flag is not set */
                                 /* Fixme : need clear PMU flag here although this flag is not set ? */
                                 printk("Release quickly(LP1) -->");
