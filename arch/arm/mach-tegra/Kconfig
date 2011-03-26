@@ -198,4 +198,10 @@ if TEGRA_ODM_KIT
 source "arch/arm/mach-tegra/odm_kit/Kconfig"
 endif
 
+config ZPAD_T2_NEWBL
+        bool "ZPAD - T2 - New Bootloader"
+	default n
+        help
+          Enables ZPAD's with the new bootloader to boot successfully.
+
 endif
