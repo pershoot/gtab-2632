@@ -292,6 +292,12 @@ config APANIC_PLABEL
 	 If your platform uses a different flash partition label for storing
  	 crashdumps, enter it here.
 
+config PIXEL_QI_SCREEN_CTRL
+	bool "Control pixelQi screen backlight"
+	depends on SMBA1006
+	---help---
+	Control PixelQi Screen backlight.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

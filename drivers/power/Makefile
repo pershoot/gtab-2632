@@ -31,3 +31,6 @@ obj-$(CONFIG_BATTERY_MAX17040)	+= max17040_battery.o
 obj-$(CONFIG_TEGRA_BATTERY_ODM)	+= tegra_odm_battery.o
 obj-$(CONFIG_TEGRA_BATTERY_NVEC) += nvec_battery.o
 obj-$(CONFIG_CHARGER_PCF50633)	+= pcf50633-charger.o
+obj-$(CONFIG_YOKU_0563113_BATTERY) += yoku_0563113/
+obj-$(CONFIG_SMBA1011_BATTERY) += smba10xx_battery/
+obj-$(CONFIG_SMBA1002_BATTERY) += smba10xx_battery/

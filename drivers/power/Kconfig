@@ -124,4 +124,22 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config YOKU_0563113_BATTERY
+	boolean "Battery driver for yoku_0563113 smart driver"
+	depends on ARCH_TEGRA
+	help
+		Say Y to add driver for a yoku_9563113 smart battery.
+
+config SMBA1011_BATTERY
+	boolean "SMBA1011 battery driver support"
+	depends on ARCH_TEGRA
+	help
+	  Say Y if you want to add battery driver support for SMBA1011
+
+config SMBA1002_BATTERY
+	boolean "SMBA1002 battery driver support"
+	depends on ARCH_TEGRA && SMBA1011_BATTERY=n
+	help
+	  Say Y if you want to add battery driver supoort for SMBA1002
+
 endif # POWER_SUPPLY

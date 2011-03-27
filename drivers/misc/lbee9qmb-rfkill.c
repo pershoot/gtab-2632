@@ -28,6 +28,17 @@
 #include <linux/platform_device.h>
 #include <linux/lbee9qmb-rfkill.h>
 
+//#include "nvodm_sdio.h"
+//#include "nvodm_services.h"
+//#include "nvodm_query_discovery.h"
+//#include "nvodm_services.h"
+//#include "nvodm_pmu.h"
+//#include "nvos.h"
+//#include "nvrm_pwm.h"
+#include <linux/kernel.h>
+
+//extern NvOdmServicesGpioHandle g_hWlanGpio;
+//extern NvOdmGpioPinHandle g_hWlanResetPin;
 static int lbee9qmb_rfkill_set_power(void *data, bool blocked)
 {
 	struct platform_device *pdev = data;
@@ -40,6 +51,8 @@ static int lbee9qmb_rfkill_set_power(void *data, bool blocked)
 		dev_err(&pdev->dev, "Unable to get regulator Vdd\n");
 		return PTR_ERR(regulator);
 	}
+	
+//	printk("lbee9qmb_rfkill_set_power blocked=%d\n",blocked);
 
 	if (!blocked) {
 		regulator_enable(regulator);
@@ -50,9 +63,14 @@ static int lbee9qmb_rfkill_set_power(void *data, bool blocked)
 		if (plat->gpio_pwr!=-1)
 			gpio_set_value(plat->gpio_pwr, 1);
 		gpio_set_value(plat->gpio_reset, 1);
+		msleep(20);
 	} else {
 		gpio_set_value(plat->gpio_reset, 0);
 		regulator_disable(regulator);
+		
+		//if(g_hWlanGpio&&g_hWlanResetPin)
+		//	NvOdmGpioSetState(g_hWlanGpio, g_hWlanResetPin, 0x0);
+		
 	}
 
 	regulator_put(regulator);

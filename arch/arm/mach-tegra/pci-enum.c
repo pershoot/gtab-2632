@@ -172,6 +172,23 @@ static u32 pci_conf_read32(u8 bus, u32 devfn, u32 where)
 	return temp;
 }
 
+static u16 pci_conf_read16(u8 bus, u32 devfn, u32 where)
+{
+	u32 temp;
+	u32 addr;
+
+	BUG_ON(where & 0x1);
+
+	addr = (u32)pci_tegra_config_addr(bus, devfn, where);
+	pr_err("Issuing pci_conf_read16 at 0x%x\n", addr);
+	temp = readl(addr & ~0x3);
+	temp >>=  8 * (addr & 3);
+	temp &= 0xffff;
+	pr_err("pci_conf_read16 at 0x%x = %d\n", addr, temp);
+
+	return (u16)temp;
+}
+
 static void pcie_scanbus(struct pci_tegra_device *dev_parent)
 {
 	u8 subordinate_bus;

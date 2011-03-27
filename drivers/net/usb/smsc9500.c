@@ -58,12 +58,25 @@
 #include <linux/ioport.h>
 #include <asm/io.h>
 
+#include <linux/netlink.h>
+#include <linux/spinlock.h>
+#include <net/sock.h>
+#include <linux/netfilter.h>
+
 #include "version.h"
 #include "smscusbnet.h"
 #include "smsc9500.h"
 #include "ioctl_9500.h"
 
 #define CHECK_RETURN_STATUS(A) { if((A) < 0){ goto DONE;} }
+
+#define NETLINK_TO_APP_LEVEL  (1)
+
+#define LINKPOLLINGINTERVAL   (2*HZ)
+#if NETLINK_TO_APP_LEVEL
+
+unsigned int LinkPollingTimer_initialized = 0;
+#endif
 
 unsigned int debug_mode = DBG_WARNING | DBG_INIT | DBG_LINK_CHANGE;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
@@ -1165,6 +1178,139 @@ DONE:
     return ret;
 }
 
+#if NETLINK_TO_APP_LEVEL
+
+unsigned int net_connect_netlink_init_flag = 0;
+
+//  mchi ------------- for netlink ------------
+
+#define IMP2_U_PID   0
+#define IMP2_K_MSG   1
+#define IMP2_CLOSE   2
+#define NL_IMP2      27
+
+#define NETLINK_RELINK_NUM   0x5FC8
+
+DECLARE_MUTEX(netrelink_receive_sem);
+
+struct user_proc_struc {
+        unsigned int pid;
+        rwlock_t lock;
+};
+
+struct packet_info
+{
+        unsigned int magic_num;
+};
+
+static struct user_proc_struc user_proc;
+static struct sock *nlfd = NULL;
+
+static void kernel_receive(struct sk_buff *skb)
+{
+        do {
+                printk("Start kernel_receive --------------- \n");
+                if(down_trylock(&netrelink_receive_sem))
+                        return;
+                while (skb->len >= NLMSG_SPACE(0)) {
+                        struct nlmsghdr *nlh = NULL;
+                        unsigned int rlen = 0;
+
+                        if(skb->len >= sizeof(struct nlmsghdr)) {
+                                nlh = (struct nlmsghdr *)skb->data;
+
+                                rlen = NLMSG_ALIGN(nlh->nlmsg_len);
+                                if (rlen > skb->len)
+                                        rlen = skb->len;
+
+                                if((nlh->nlmsg_len >= sizeof(struct nlmsghdr))
+                                   && (skb->len >= nlh->nlmsg_len)) {
+                                        if(nlh->nlmsg_type == IMP2_U_PID) {
+                                                //_raw_write_lock(&user_proc.pid);
+                                                user_proc.pid = nlh->nlmsg_pid;
+                                                //_raw_read_unlock(&user_proc.pid);
+                                        } else if(nlh->nlmsg_type == IMP2_CLOSE) {
+                                                //_raw_write_lock(&user_proc.pid);
+                                                if(nlh->nlmsg_pid == user_proc.pid)
+                                                        user_proc.pid = 0;
+                                                //_raw_read_unlock(&user_proc.pid);
+                                        }
+                                        printk("kernel_receive : received message from app (pid = %u) \n", user_proc.pid);
+                                }
+                        }
+                        skb_pull(skb, rlen);
+                }
+                up(&netrelink_receive_sem);
+        }while(nlfd && nlfd->sk_receive_queue.qlen);
+}
+
+static int net_connect_netlink_init(void)
+{
+        printk("Start net_connect_netlink_init ---- \n");
+        rwlock_init(&user_proc.lock);
+        user_proc.pid = 0xffffffff;
+        nlfd = netlink_kernel_create(&init_net, NETLINK_LINKINFO, 0, kernel_receive, NULL, THIS_MODULE);
+        if(!nlfd) {
+                printk("can not create a netlink socket\n");
+                return -1;
+        }
+        printk("End net_connect_netlink_init -------------------- \n");
+        return 1;
+}
+static void net_connect_netlink_fini(void)
+{
+        if(nlfd) {
+                user_proc.pid = 0xffffffff;
+                netlink_kernel_release(nlfd);
+                printk("mchi : net_connect_netlink_fini --------------------- \n");
+        }
+}
+
+static int send_to_user(void)
+{
+        int ret = 0;
+        int size;
+        unsigned char *old_tail;
+        struct sk_buff *skb = NULL;
+        struct nlmsghdr *nlh;
+        struct packet_info *packet;
+
+        size = NLMSG_SPACE(sizeof(struct packet_info));
+        skb = alloc_skb(size, GFP_ATOMIC);
+        if(skb == NULL) {
+                printk("send_to_user : cann't allocate skb \n");
+                return 1;
+        }
+        old_tail = skb->tail;
+        nlh = NLMSG_PUT(skb, 0, 0, /*IMP2_K_MSG*/0, size-sizeof(*nlh));
+        packet = NLMSG_DATA(nlh);
+        memset(packet, 0, sizeof(struct packet_info));
+        packet->magic_num = NETLINK_RELINK_NUM;
+        nlh->nlmsg_len = skb->tail - old_tail;
+        //NETLINK_CB(skb).dst_groups = 0;
+        _raw_read_lock(&user_proc.lock);
+        if(user_proc.pid != 0xffffffff) {
+                ret = netlink_unicast(nlfd, skb, user_proc.pid, MSG_DONTWAIT);
+                if(ret < 0) {
+                        printk("SMSC9500: Netlink failed to send msg to user\n");
+                }
+        }
+        _raw_read_unlock(&user_proc.lock);
+        printk("mchi : send netlink message to app (pid = %u) \n", user_proc.pid);     
+   
+        return ret;
+nlmsg_failure:
+        if(skb)
+                kfree_skb(skb);
+        return -1;
+}
+
+// mchi : ------------------ end functions for netlink --------------
+
+unsigned int send_to_user_times = 0;
+#endif  /* NETLINK_TO_APP_LEVEL */
+
+
 static int Phy_UpdateLinkMode(struct usbnet *dev)
 {
 
@@ -1305,6 +1451,13 @@ static int Phy_UpdateLinkMode(struct usbnet *dev)
 			netif_carrier_on(dev->net);
 			Tx_WakeQueue(dev,0x01);
 			SetGpo(dev, adapterData->LinkLedOnGpio, !adapterData->LinkLedOnGpioPolarity);
+#if NETLINK_TO_APP_LEVEL
+                        /* Now it's Link Up, will send message to application level */
+                        if(send_to_user_times++ == 0) {
+                                printk("mchi : Send message to app level in %s --- \n", __FUNCTION__);
+                                send_to_user(); //mchi
+                        }
+#endif
 
 		} else {
 			SMSC_TRACE(DBG_LINK_CHANGE,"Link is now DOWN");
@@ -1317,6 +1470,9 @@ static int Phy_UpdateLinkMode(struct usbnet *dev)
 			CHECK_RETURN_STATUS(smsc9500_read_reg(dev,	AFC_CFG,&dwValue));
 			dwValue=dwValue& (~0x0000000FUL);
 			CHECK_RETURN_STATUS(smsc9500_write_reg(dev,	AFC_CFG, dwValue));
+#if NETLINK_TO_APP_LEVEL
+                        send_to_user_times = 0;
+#endif
 		}
 	}
 	SMSC_TRACE(DBG_LINK,"<----------out of Phy_UpdateLinkMode");
@@ -1370,7 +1526,7 @@ static int Phy_CheckLink(void * ptr)
 	}
 
 	if( (!(dev->StopLinkPolling)) && (!timer_pending(&dev->LinkPollingTimer))) {
-		dev->LinkPollingTimer.expires=jiffies+HZ;
+		dev->LinkPollingTimer.expires=jiffies+LINKPOLLINGINTERVAL; //HZ;
 		add_timer(&(dev->LinkPollingTimer));
 	}
 	SMSC_TRACE(DBG_LINK,"<---------out of Phy_CheckLink");
@@ -2576,6 +2732,35 @@ static int smsc9500_bind(struct usbnet *dev, struct usb_interface *intf)
 	adapterData->LanInitialized=TRUE;
 
 	SMSC_TRACE(DBG_INIT,"<--------out of bind, return 0\n");
+
+#if NETLINK_TO_APP_LEVEL
+        /* Add the timer to poll phy status  */
+        if(LinkPollingTimer_initialized == 0) {
+                init_timer(&(dev->LinkPollingTimer));
+                dev->StopLinkPolling=FALSE;
+                dev->LinkPollingTimer.function=smscusbnet_linkpolling;
+                dev->LinkPollingTimer.data=(unsigned long) dev;
+                dev->LinkPollingTimer.expires=jiffies + (2 *  LINKPOLLINGINTERVAL); // 2 seconds interval
+                add_timer(&(dev->LinkPollingTimer));
+                
+                LinkPollingTimer_initialized = 1;
+        } else if(dev->StopLinkPolling == TRUE) {
+                dev->StopLinkPolling=FALSE;
+                dev->LinkPollingTimer.data=(unsigned long) dev;
+                dev->LinkPollingTimer.function=smscusbnet_linkpolling;
+                dev->LinkPollingTimer.expires=jiffies+LINKPOLLINGINTERVAL;
+                add_timer(&(dev->LinkPollingTimer));
+        }
+
+        send_to_user_times = 0;
+/*
+        if(net_connect_netlink_init_flag == 0) {
+                net_connect_netlink_init();
+                net_connect_netlink_init_flag = 1;
+        }
+*/
+#endif
+
 	return 0;
 
 	if (adapterData != NULL){
@@ -2593,12 +2778,26 @@ static void smsc9500_unbind(struct usbnet *dev, struct usb_interface *intf)
 	PADAPTER_DATA  adapterData=(PADAPTER_DATA)(dev->data[0]);
 	SMSC_TRACE(DBG_CLOSE,"------->in smsc9500_unbind\n");
 
+#if NETLINK_TO_APP_LEVEL
+        dev->StopLinkPolling=TRUE;
+        LinkPollingTimer_initialized = 0;
+        del_timer_sync(&dev->LinkPollingTimer);
+#endif
+
 	if (adapterData != NULL){
 		SMSC_TRACE(DBG_CLOSE,"free adapterData\n");
 		kfree(adapterData);
 		adapterData=NULL;
 	}
 
+#if 0
+#if NETLINK_TO_APP_LEVEL
+        if(net_connect_netlink_init_flag == 1) {
+                net_connect_netlink_fini();
+                net_connect_netlink_init_flag = 0;
+        }
+#endif
+#endif
 	SMSC_TRACE(DBG_CLOSE,"<-------out of smsc9500_unbind\n");
 }
 
@@ -4951,13 +5150,27 @@ static int Smsc9500SystemResume(struct usb_interface *intf)
 
     Tx_WakeQueue(dev,0x04UL);
 
-	init_timer(&(dev->LinkPollingTimer));
-	dev->StopLinkPolling=FALSE;
-	dev->LinkPollingTimer.function=smscusbnet_linkpolling;
-	dev->LinkPollingTimer.data=(unsigned long) dev;
-	dev->LinkPollingTimer.expires=jiffies+HZ;
-	add_timer(&(dev->LinkPollingTimer));
-	tasklet_schedule (&dev->bh);
+#if NETLINK_TO_APP_LEVEL
+    if(LinkPollingTimer_initialized == 0) {
+#endif
+            init_timer(&(dev->LinkPollingTimer));
+            dev->StopLinkPolling=FALSE;
+            dev->LinkPollingTimer.function=smscusbnet_linkpolling;
+            dev->LinkPollingTimer.data=(unsigned long) dev;
+            dev->LinkPollingTimer.expires=jiffies+(2 * LINKPOLLINGINTERVAL); //HZ;
+            add_timer(&(dev->LinkPollingTimer));
+#if NETLINK_TO_APP_LEVEL
+            LinkPollingTimer_initialized = 1;
+    } else if(dev->StopLinkPolling == TRUE) {
+            dev->StopLinkPolling=FALSE;
+            dev->LinkPollingTimer.data=(unsigned long) dev;
+            dev->LinkPollingTimer.function=smscusbnet_linkpolling;
+            dev->LinkPollingTimer.expires=jiffies+LINKPOLLINGINTERVAL;
+            add_timer(&(dev->LinkPollingTimer));
+    }
+#endif
+    
+    tasklet_schedule (&dev->bh);
 
     dev->idleCount = 0;
 
@@ -4997,12 +5210,26 @@ static int smsc9500_device_recovery(struct usbnet *dev)
 
         Tx_WakeQueue(dev,0x04UL);
 
-        init_timer(&(dev->LinkPollingTimer));
-        dev->StopLinkPolling=FALSE;
-        dev->LinkPollingTimer.function=smscusbnet_linkpolling;
-        dev->LinkPollingTimer.data=(unsigned long) dev;
-        dev->LinkPollingTimer.expires=jiffies+HZ;
-        add_timer(&(dev->LinkPollingTimer));
+#if NETLINK_TO_APP_LEVEL
+        if(LinkPollingTimer_initialized == 0) {
+#endif
+                init_timer(&(dev->LinkPollingTimer));
+                dev->StopLinkPolling=FALSE;
+                dev->LinkPollingTimer.function=smscusbnet_linkpolling;
+                dev->LinkPollingTimer.data=(unsigned long) dev;
+                dev->LinkPollingTimer.expires=jiffies+(2 * LINKPOLLINGINTERVAL); //HZ;
+                add_timer(&(dev->LinkPollingTimer));
+#if NETLINK_TO_APP_LEVEL
+                LinkPollingTimer_initialized = 1;
+        } else if(dev->StopLinkPolling == TRUE) {
+                dev->StopLinkPolling=FALSE;
+                dev->LinkPollingTimer.data=(unsigned long) dev;
+                dev->LinkPollingTimer.function=smscusbnet_linkpolling;
+                dev->LinkPollingTimer.expires=jiffies+LINKPOLLINGINTERVAL;
+                add_timer(&(dev->LinkPollingTimer));
+        }
+
+#endif
 
         tasklet_schedule (&dev->bh);
 
@@ -5061,14 +5288,34 @@ static struct usb_driver smsc9500_driver = {
 
 static int __init smsc9500_init(void)
 {
+        int ret = 0;
 
-        return usb_register(&smsc9500_driver);
+        ret = usb_register(&smsc9500_driver);
+        
+        /* Register the PID receiver thread */        
+#if NETLINK_TO_APP_LEVEL
+        if(net_connect_netlink_init_flag == 0) {
+                net_connect_netlink_init();
+                net_connect_netlink_init_flag = 1;
+        }
+#endif
+
+        return ret;
 }
 module_init(smsc9500_init);
 
 static void __exit smsc9500_exit(void)
 {
         usb_deregister(&smsc9500_driver);
+
+#if NETLINK_TO_APP_LEVEL
+        /* unregister the PID receiver thread */
+        if(net_connect_netlink_init_flag == 1) {
+                net_connect_netlink_fini();
+                net_connect_netlink_init_flag = 0;
+        }
+#endif
+
 }
 module_exit(smsc9500_exit);
 

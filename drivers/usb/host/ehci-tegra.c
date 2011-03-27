@@ -399,8 +399,8 @@ static int tegra_ehci_bus_suspend(struct usb_hcd *hcd)
 
 	if (ehci->host_resumed) {
 		error_status = ehci_bus_suspend(hcd);
-		if (!error_status)
-			tegra_ehci_power_down(hcd);
+		//if (!error_status) 
+			//tegra_ehci_power_down(hcd);
 	}
 
 	return error_status;
@@ -433,9 +433,9 @@ static int tegra_ehci_bus_resume(struct usb_hcd *hcd)
 		}
 	}
 
-	if (!ehci->host_resumed) {
-		tegra_ehci_power_up(hcd);
-	}
+	//if (!ehci->host_resumed) { 
+	//	tegra_ehci_power_up(hcd);
+	//}
 
 	return ehci_bus_resume(hcd);
 }

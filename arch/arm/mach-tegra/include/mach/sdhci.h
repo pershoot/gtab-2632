@@ -34,6 +34,10 @@ struct tegra_sdhci_platform_data {
 	int gpio_polarity_cd;	/* active high card detect */
 	int gpio_nr_wp;		/* write protect gpio, -1 if unused */
 	int gpio_polarity_wp;	/* active high write protect */
+    //add by navy
+    int gpio_nr_en; /*card power enable, -1 if unused */
+    int gpio_polarity_en; /* active state for enable*/
+    //add end
 	int bus_width;		/* bus width in bits */
 	int is_removable;	/* card can be removed */
 	unsigned int debounce;	/* debounce time in milliseconds */

@@ -16,6 +16,17 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/irq.h>
+#include <linux/delay.h>
+#include <linux/clk.h>
+#include <linux/gpio.h>
+#include <linux/fs.h>
+#include <mach/nvrm_linux.h>
+
+#include <nvrm_gpio.h>
+
 #include "nvodm_query_discovery.h"
 #include "nvodm_query.h"
 #include "nvodm_query_gpio.h"
@@ -77,6 +88,8 @@ NvOdmPmuDeviceTPS *hPmu;
 #define L2_CHARGING_CURRENT        500
 #define L3_CHARGING_CURRENT        250
 
+static atomic_t resume_isr_lock;
+
 /* Valtage tables for LDOs */
 /* FIXME: Modify those tables according to your fuse */
 static const NvU32 VLDOx[] = {1250, 1500, 1800, 2500, 2700, 2850, 3100, 3300};
@@ -131,6 +144,10 @@ static NvU32 TPS6586xPmuVoltageSetVLDOx(const NvU32 bits);
 static NvU32 TPS6586xPmuVoltageSetVLDO1(const NvU32 bits);
 static NvU32 TPS6586xPmuVoltageSetVLDO2(const NvU32 bits);
 static NvU32 TPS6586xPmuVoltageSetVLDO4(const NvU32 bits);
+/* Martin.Chi */
+static void Resume_Isr(void *arg);
+extern void Tps6586x_Resume_Isr_Register(void);
+NvOdmPmuDeviceHandle G_hdev=0;
 
 /* FIXME: Change getVoltage/setVoltage according to your fuse */
 static const TPS6586xPmuSupplyInfo tps6586xSupplyInfoTable[] =
@@ -406,11 +423,17 @@ static const TPS6586xPmuSupplyInfo tps6586xSupplyInfoTable[] =
         {TPS6586x_R52_RGB1GREEN, 7, 1, TPS6586x_RFF_INVALID},
         NULL, NULL, NULL,
         TPS6586x_RFF_INVALID,
-
+       #if (defined(CONFIG_7564C_V10))
+	   {
+            NV_FALSE,  
+            0, 1, 0x9f, 0  //hzj change 0x1f
+        },
+	   #else 
         {
             NV_FALSE,
             0, 1, 0x1f, 0
         },
+		#endif
     },
 
     //BLUE1
@@ -996,6 +1019,15 @@ Tps6586xSetExternalSupply(
 
         if (Enable)
         {
+		#if 1
+		NvOdmGpioSetState(hPmu->hGpio,
+                                  hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
+                                  NvOdmGpioPinActiveState_High);
+
+                NvOdmGpioConfig(hPmu->hGpio,
+                                hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
+                                NvOdmGpioPinMode_Output);
+		#else
             if (vddRail == Ext_TPS2051BPmuSupply_VDDIO_VID)
             {
                 NvOdmGpioConfig(hPmu->hGpio,
@@ -1012,6 +1044,7 @@ Tps6586xSetExternalSupply(
                                 hPmu->hPin[NVODM_EXT_AP_GPIO_RAIL(vddRail)],
                                 NvOdmGpioPinMode_Output);
             }
+		#endif
         }
         else
         {
@@ -1047,6 +1080,9 @@ Tps6586xWriteVoltageReg(
     const TPS6586xPmuSupplyInfo* pSupplyInfo = &tps6586xSupplyInfoTable[vddRail];
     //const TPS6586xPmuSupplyInfo* pSupplyInputInfo = &tps6586xSupplyInfoTable[pSupplyInfo->supplyInput];
     NvBool status = NV_FALSE;
+    static int flag =0;
+
+    if(vddRail == Ext_SWITCHPmuSupply_VDDIO_SD) return false;//disable control external sd card power in pmu.
 
     NV_ASSERT(pSupplyInfo->supply == (TPS6586xPmuSupply)vddRail);
 
@@ -1286,6 +1322,13 @@ Tps6586xWriteVoltageReg(
     else
         NvOdmOsWaitUS(250);
 
+    if(flag==0)
+    {
+    	status = Tps6586xSetExternalSupply(hDevice, Ext_TPS2051BPmuSupply_VDDIO_VID, NV_TRUE);
+    	printk("enbale dock power %s\n",status?"success":"fail");
+    	NvOdmOsWaitUS(250);
+		flag=1;
+   }
     return NV_TRUE;
 }
 
@@ -1358,6 +1401,79 @@ void DumpTps6586x(NvOdmPmuDeviceHandle hDevice)
 }
 #endif
 
+//just for wifi led
+NvOdmPmuDeviceHandle WIFI_hDevice=NULL;
+
+void Nv_WIFI_LED_Control(unsigned int enable)
+{
+	if(WIFI_hDevice==NULL) return;
+	NvU32 data = 0;
+	NvOdmPmuDeviceHandle hDevice=WIFI_hDevice;
+	TPS6586xPmuSupply index=TPS6586xPmuSupply_BLUE1;
+    const TPS6586xPmuSupplyInfo* pSupplyInfo = &tps6586xSupplyInfoTable[index];
+		
+   	NvBool status = NV_FALSE;
+   	NV_ASSERT(pSupplyInfo->supply == (TPS6586xPmuSupply)index);
+
+	while(1)
+	{
+		//disable RGB1 driver flash mode
+	   	data =0xFF;
+	   	if(!Tps6586xI2cWrite8(hDevice, TPS6586x_R50_RGB1FLASH, data)) break;
+								    	
+	  	//enable RGB1 driver
+	   	if(!Tps6586xI2cRead8(hDevice, pSupplyInfo->ctrlRegInfo.addr, &data)) break;
+	   	data |= (((1<<pSupplyInfo->ctrlRegInfo.bits)-1)<<pSupplyInfo->ctrlRegInfo.start);
+	   	if(!Tps6586xI2cWrite8(hDevice, pSupplyInfo->ctrlRegInfo.addr, data)) break;
+
+	   	data=(enable?pSupplyInfo->cap.MaxMilliVolts:pSupplyInfo->cap.MinMilliVolts);
+	   	//data = (((data<<pSupplyInfo->supplyRegInfo.bits)-1)<<pSupplyInfo->supplyRegInfo.start);
+
+	  	if(!Tps6586xI2cWrite8(hDevice, pSupplyInfo->supplyRegInfo.addr, data)) break;
+		break;
+	}
+}
+
+#if (defined(CONFIG_7564C_V10)) //suspend led  hzj added
+
+NvOdmPmuDeviceHandle Suspend_hDevice=NULL;
+
+void Nv_Suspend_LED_Control(unsigned int enable)
+{
+        NVODMPMU_PRINTF("hzj add nvsuspend_led_0/n");
+	if(Suspend_hDevice==NULL) return;
+	NvU32 data = 0;
+	NvOdmPmuDeviceHandle hDevice=Suspend_hDevice;
+	TPS6586xPmuSupply index=TPS6586xPmuSupply_GREEN1;
+        const TPS6586xPmuSupplyInfo* pSupplyInfo = &tps6586xSupplyInfoTable[index];
+	NVODMPMU_PRINTF("hzj add nvsuspend_led_8/n");
+    	NvBool status = NV_FALSE;
+        
+    	NV_ASSERT(pSupplyInfo->supply == (TPS6586xPmuSupply)index);
+    	NVODMPMU_PRINTF("hzj add nvsuspend_led_1/n");
+    	while(1)
+    	{
+    		//disable RGB1 driver flash mode
+	    	data =0xFF;
+	    	if(!Tps6586xI2cWrite8(hDevice, TPS6586x_R50_RGB1FLASH, data)) break;
+	    	NVODMPMU_PRINTF("hzj add nvsuspend_led_2/n");
+	    	//enable RGB1 driver
+	    	if(!Tps6586xI2cRead8(hDevice, pSupplyInfo->ctrlRegInfo.addr, &data)) break;
+	    	data |= (((1<<pSupplyInfo->ctrlRegInfo.bits)-1)<<pSupplyInfo->ctrlRegInfo.start);
+	    	if(!Tps6586xI2cWrite8(hDevice, pSupplyInfo->ctrlRegInfo.addr, data)) break;
+                NVODMPMU_PRINTF("hzj add nvsuspend_led_3/n");
+			if(!Tps6586xI2cRead8(hDevice, pSupplyInfo->supplyRegInfo.addr, &data)) break;
+	    	data=(enable?pSupplyInfo->cap.MaxMilliVolts:pSupplyInfo->cap.MinMilliVolts);
+	    	//data = (((data<<pSupplyInfo->supplyRegInfo.bits)-1)<<pSupplyInfo->supplyRegInfo.start);
+                 NVODMPMU_PRINTF("hzj add nvsuspend_led_4/n");
+	    	if(!Tps6586xI2cWrite8(hDevice, pSupplyInfo->supplyRegInfo.addr, data)) break;
+    		break;
+                NVODMPMU_PRINTF("hzj add nvsuspend_led_5/n");
+	}
+}
+
+#endif
+
 NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
 {
     NvOdmIoModule I2cModule = NvOdmIoModule_I2c;
@@ -1370,6 +1486,12 @@ NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
                            NvOdmPeripheralGetGuid(PMUGUID);
 
     NV_ASSERT(hDevice);
+	WIFI_hDevice = hDevice;
+
+
+#if (defined(CONFIG_7564C_V10))
+  Suspend_hDevice= hDevice; //hzj added
+#endif  
 
     hPmu = (NvOdmPmuDeviceTPS *)NvOdmOsAlloc(sizeof(NvOdmPmuDeviceTPS));
     if (hPmu == NULL)
@@ -1473,19 +1595,74 @@ NvBool Tps6586xSetup(NvOdmPmuDeviceHandle hDevice)
     {
         pmuStatus.batFull = NV_FALSE;
     }
-
+	G_hdev = hDevice;
     // By default some of external rails are ON, making them OFF.
     hPmu->supplyRefCntTable[Ext_TPS74201PmuSupply_LDO] = 1;
     if (NV_FALSE == Tps6586xWriteVoltageReg(hDevice, Ext_TPS74201PmuSupply_LDO,
 						ODM_VOLTAGE_OFF, NULL))
          NVODMPMU_PRINTF(("TPS: Fail to set Ext_TPS74201PmuSupply_LDO OFF\n"));
-
+#if 1
+//renn add for test
+            NvU32 SMODE1Value;
+            if (!Tps6586xI2cRead8(hDevice, TPS6586x_R47_SMODE1, &SMODE1Value))
+            NVODMPMU_PRINTF(("TPS:Read from PMU I2C fails ... TPS6586x_R47_SMODE1\n"));
+            SMODE1Value=((SMODE1Value|0x02)&(~0x20));
+            if (!Tps6586xI2cWrite8(hDevice, TPS6586x_R47_SMODE1,SMODE1Value))
+            NVODMPMU_PRINTF(("TPS:Write to PMU I2C fails ... TPS6586x_R47_SMODE1\n"));           	   
+//renn add end
+#endif
     return NV_TRUE;
 
 OPEN_FAILED:
     Tps6586xRelease(hDevice);
     return NV_FALSE;
 }
+
+
+#if 0
+struct Resume_struct {
+	NvOdmOsSemaphoreHandle IntSema;
+};
+struct Resume_struct Resume_St;
+#endif
+NvOdmServicesGpioIntrHandle hGpioIntr = NULL;
+
+void Tps6586x_Resume_Isr_Register(void)
+{
+	NvOdmGpioPinHandle hGpioPin;
+
+#define PMU_RESUME_PIN_IRQ_TYPE (NvOdmGpioPinMode_InputInterruptFallingEdge|NvOdmGpioPinMode_InputInterruptRisingEdge)
+	printk("Tps6586x_Resume_Isr_Register\n");
+
+	if (!hPmu->hGpio)
+	{
+		hPmu->hGpio = NvOdmGpioOpen();
+		if (!hPmu->hGpio)
+			return;
+	}
+
+	if(hPmu->hGpio != NULL) {
+		NvU32 k = NVODM_PORT('v');
+
+		//Resume_St.IntSema = NvOdmOsSemaphoreCreate(0);
+		
+		printk("Try to get NvOdmGpioPinHandle --------------- \n");
+		hGpioPin = NvOdmGpioAcquirePinHandle(hPmu->hGpio, k, 0x2);
+		//NvOdmGpioPinHandle hGpioPin0=NULL;
+		//hGpioPin0 = NvOdmGpioAcquirePinHandle(hPmu->hGpio, k, 0x2);
+		//printk("Got NvOdmGpioPinHandle hGpioPin0=%p \n",hGpioPin0);
+
+		printk("Got NvOdmGpioPinHandle <<<<<<<<<<<<<<<<<<<< \n");
+
+                atomic_set(&resume_isr_lock, 0);
+
+		if(NvOdmGpioInterruptRegister(hPmu->hGpio, &hGpioIntr, hGpioPin, PMU_RESUME_PIN_IRQ_TYPE,
+					      Resume_Isr, NULL/*(void*)(&Resume_St)*/, 0)) {
+			printk("Register PMU Resume Irq successfully\n");
+		}
+	}
+}
+
 
 void Tps6586xRelease(NvOdmPmuDeviceHandle hDevice)
 {
@@ -1826,4 +2003,196 @@ NvBool Tps6586xWriteAlarm( NvOdmPmuDeviceHandle  hDevice, NvU32 Count)
 NvBool Tps6586xIsRtcInitialized( NvOdmPmuDeviceHandle  hDevice)
 {
     return ((Tps6586xRtcWasStartUpFromNoPower(hDevice))? NV_FALSE: NV_TRUE);
+}
+
+static int power_fs_sync(void)
+{
+        char *argv[] = { "/system/bin/sync", NULL};
+        static char *envp[] = {
+                "HOME=/",
+                "TERM=linux",
+                "PATH=/system/sbin:/system/xbin:/sbin",
+                NULL
+        };
+        struct subprocess_info *info;
+
+        info = call_usermodehelper_setup(argv[0], argv, envp, GFP_ATOMIC);
+        if (info == NULL) {
+                return 1;
+        }
+
+        call_usermodehelper_exec(info, UMH_NO_WAIT);
+
+        mdelay(100);
+
+        emergency_sync();
+
+        mdelay(200);
+
+        return 0;
+}
+
+extern void F4_Deal(unsigned int wake_up_flag);
+extern void pmu_tegra_cpufreq_hotplug(bool onoff);
+extern unsigned int WAKE_UP_FROM_LP1_FLAG;
+struct timeval last_receive_time;       //Add for double click in 500ms; 2010-10-27
+extern unsigned int PM_SCREEN_IS_OFF;
+
+/* Interrupt function for Power Button*/
+static void Resume_Isr(void *arg)
+{
+	NvU32 data = 0;
+	NvU32 pinnum = 21 * 8 + 2; // 'v'-'a' = 21
+	struct timeval start_time, cur_time;
+	unsigned long flags = 0;
+	NvU32 delatime = 0;
+        NvU32 screen_flag = PM_SCREEN_IS_OFF;
+        
+        printk("PMU Resume Irq. In %d, %d --> ", WAKE_UP_FROM_LP1_FLAG, screen_flag);
+
+        if(atomic_add_return(1, &resume_isr_lock) != 1) {
+                atomic_sub(1, &resume_isr_lock);
+                goto left;
+        }
+
+        /* If it is already released, left */
+        if(((gpio_get_value(pinnum)& 0x1)) && (WAKE_UP_FROM_LP1_FLAG != 1)) { 
+                printk("Already release, left--> \n ");
+                goto left;
+        }
+
+        do_gettimeofday(&start_time);
+
+        //Add for double click in 500ms; 2010-10-27
+        if(WAKE_UP_FROM_LP1_FLAG != 1) {
+                if((( start_time.tv_sec == last_receive_time.tv_sec )) && 
+                   (( start_time.tv_usec - last_receive_time.tv_usec ) < 500000)) {
+                        goto left;
+                }
+        }
+
+        /* If it's the press for wake-up, send out a "KEY_F4" */
+        if((WAKE_UP_FROM_LP1_FLAG == 1) && (delatime < 1)) {
+                printk("Send First KEY_F4(LP1) -->");
+                F4_Deal(1);     /* Send a simulate to upper  (PowerManager Service) */
+        } else {
+                printk("F4_Deal(0)-->");
+                F4_Deal(0);
+        }
+
+	for(;;) {
+		if(!Tps6586xI2cRead8(G_hdev, TPS6586x_RBB_STAT3, &data)) {
+			break;
+		}
+
+		if(data & 0x80) {
+			/* Write EXITSLREQ to 1(0x14, bit B1) to drive the PMU to the NORMAL state */
+			if (!Tps6586xI2cRead8(G_hdev, TPS6586x_R14_SUPPLYENE, &data))
+				break;
+			
+			data = data | 0x2;
+			
+			if (!Tps6586xI2cWrite8(G_hdev, TPS6586x_R14_SUPPLYENE, data))
+				break;
+
+                        if (!Tps6586xI2cRead8(G_hdev, TPS6586x_R14_SUPPLYENE, &data))
+                                break;
+
+                        data = data & (~0x02);
+
+                        if (!Tps6586xI2cWrite8(G_hdev, TPS6586x_R14_SUPPLYENE, data))
+                                break;
+
+                        /* If WAKE_UP_FROM_LP1_FLAG is set, left
+                           (before this, PMU flag was already cleared and F4 was sent) */
+                        if(WAKE_UP_FROM_LP1_FLAG == 1) {
+                                WAKE_UP_FROM_LP1_FLAG = 0;
+                                printk("LP1(PMU flag set) -->");
+                                goto left;
+                        }
+
+                        if(screen_flag == 1) {
+                                printk("Left2Light-->");
+                                PM_SCREEN_IS_OFF = 0;
+                                /* Must left to avoid tegra-ghrost error */
+                                F4_Deal(3);
+                                goto left;
+                        }
+                } else if (delatime >= 1) {
+                        if(screen_flag == 1) {
+                                printk("Left2Light(noflag)-->");
+                                PM_SCREEN_IS_OFF = 0;
+                                /* Must left to avoid tegra-ghrost error */
+                                F4_Deal(3);
+                                goto left;
+                        }
+                }
+
+                /* Clear EXITSLREQ to 1(0x14, bit B1) in 6s */
+		if(((gpio_get_value(pinnum)& 0x1)) && (delatime < 2)) {
+                        if(WAKE_UP_FROM_LP1_FLAG == 1) { /* Release quickly and PMU flag is not set */
+                                /* Fixme : need clear PMU flag here although this flag is not set ? */
+                                printk("Release quickly(LP1) -->");
+                                WAKE_UP_FROM_LP1_FLAG = 0;
+                                goto left;
+                        } else {
+                                printk("PressRelease -->");
+                                /* Wake up another CPU */
+                                pmu_tegra_cpufreq_hotplug(1);
+                        }
+
+			break;
+		}
+		
+                /* Time come to 2+s, then always pop out selection box */
+		if((delatime >= 2) && (flags == 0)) {
+			/* Wake up another CPU to deal F4_KEY */
+			pmu_tegra_cpufreq_hotplug(1);
+
+			if(WAKE_UP_FROM_LP1_FLAG == 0) {
+                                printk("Send F4_Deal (0~2s) --> ");
+                                F4_Deal(3);
+                                flags++;
+                        }
+		}
+
+                /* If press duration is more than 5 seconds, power off device */
+		if(delatime >= 6) {
+                        data = 0x08;
+                        
+                        power_fs_sync();
+
+                        printk("Hard Power Off.\n");
+                        
+                        msleep(800);
+                        
+                        Tps6586xI2cWrite8(G_hdev, TPS6586x_R14_SUPPLYENE, data);
+			
+			break;
+		}
+
+		do_gettimeofday(&cur_time);
+		delatime = cur_time.tv_sec - start_time.tv_sec;
+	}
+        
+        printk("delatime(%d) -->", delatime);
+
+        /* If press duration is less than 2s, send a KEY_F4 to try to drive device to sleep */
+	if((WAKE_UP_FROM_LP1_FLAG == 0) && (delatime < 2)) {
+                printk("<--F4_Deal(0) >>");
+                F4_Deal(0);
+        }
+
+left:
+        /* Ok, in this loop, clear WAKE_UP_FROM_LP1_FLAG */
+        WAKE_UP_FROM_LP1_FLAG = 0;
+
+        //Add for double click in 500ms; 2010-10-27
+        do_gettimeofday(&last_receive_time);
+
+        atomic_set(&resume_isr_lock, 0);
+
+	printk("Out. \n");
+
+	NvOdmGpioInterruptDone(hGpioIntr);
 }

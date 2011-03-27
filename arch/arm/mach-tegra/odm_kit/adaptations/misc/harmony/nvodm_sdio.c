@@ -26,9 +26,13 @@
 #include "nvodm_services.h"
 #include "nvodm_pmu.h"
 #include "nvos.h"
+#include "nvrm_pwm.h"
+#include <linux/kernel.h>
+
+#define NV_DRIVER_DEBUG
 
 #ifdef NV_DRIVER_DEBUG
-    #define NV_DRIVER_TRACE(x) NvOdmOsDebugPrintf x
+    #define NV_DRIVER_TRACE(x) printk x//NvOdmOsDebugPrintf x
 #else
     #define NV_DRIVER_TRACE(x)
 #endif
@@ -52,7 +56,8 @@ typedef struct NvOdmSdioRec
     NvU32 Instance;
 } NvOdmSdio;
 
-
+ NvOdmServicesGpioHandle g_hWlanGpio=NULL;
+ NvOdmGpioPinHandle g_hWlanResetPin=NULL;
 
 static void NvOdmSetPowerOnSdio(NvOdmSdioHandle pDevice, NvBool IsEnable);
 static NvBool SdioOdmWlanSetPowerOn(NvOdmSdioHandle hOdmSdio, NvBool IsEnable);
@@ -62,17 +67,37 @@ static NvBool SdioOdmWlanSetPowerOn(NvOdmSdioHandle hOdmSdio, NvBool IsEnable)
 {
     if (IsEnable) 
     {
+    	NV_DRIVER_TRACE(("enable wlan power\n"));
+	//NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hPwrPin, 0x0);      //PWD -> Low
+        NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hResetPin, 0x0);    //RST -> Low
+	
         // Wlan Power On Reset Sequence
+	#if 0
         NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hPwrPin, 0x0);      //PWD -> Low
         NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hResetPin, 0x0);    //RST -> Low
-        NvOdmOsWaitUS(2000);
+        NvOdmOsWaitUS(20000);
         NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hPwrPin, 0x1);      //PWD -> High
         NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hResetPin, 0x1);    //RST -> High      
+	#else
+	//NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hPwrPin, 0x0);      //PWD -> Low
+        //NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hResetPin, 0x0);    //RST -> Low
+        //NvOdmOsWaitUS(20000);
+        NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hPwrPin, 0x1);      //PWD -> High
+	NvOdmOsWaitUS(10000);//NvOdmOsWaitUS(10000);
+        NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hResetPin, 0x1);    //RST -> High  
+        NvOdmOsWaitUS(30000);//NvOdmOsWaitUS(30000);
+	g_hWlanResetPin=hOdmSdio->hResetPin;
+	g_hWlanGpio=hOdmSdio->hGpio;
+	#endif
+	NV_DRIVER_TRACE(("wlan power on\n"));
+
+	
      }
      else 
      {
          // Power Off sequence
          NvOdmGpioSetState(hOdmSdio->hGpio, hOdmSdio->hPwrPin, 0x0);     //PWD -> Low
+	NV_DRIVER_TRACE(("wlan power off\n"));
      }
 
     return NV_TRUE;
@@ -171,7 +196,21 @@ NvOdmSdioHandle NvOdmSdioOpen(NvU32 Instance)
         // Setting the Output Pin to Low
         NvOdmGpioSetState(hGpioTemp, pDevice->hPwrPin, 0x0);
         NvOdmGpioSetState(hGpioTemp, pDevice->hResetPin, 0x0);
+	if(1)//for usi wifi/bt 32.768khz clock
+	{
+                NvOdmServicesPwmHandle mchi_hOdmPwm = NULL;
 
+                unsigned int pCurrentFreqHzOrPeriod;
+
+                unsigned int pRequestedFreqHzOrPeriod = 32768;
+
+                mchi_hOdmPwm = NvOdmPwmOpen();
+
+                NvOdmPwmConfig(mchi_hOdmPwm,NvRmPwmOutputId_Blink,
+                		NvRmPwmMode_Blink_32KHzClockOutput, 16, &pRequestedFreqHzOrPeriod, &pCurrentFreqHzOrPeriod);
+		//NvOdmOsWaitUS(5000);
+		NvOdmOsWaitUS(20000);
+        }
         pDevice->hGpio = hGpioTemp;
 
         Status = SdioOdmWlanSetPowerOn(pDevice, NV_TRUE);

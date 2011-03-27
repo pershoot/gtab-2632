@@ -31,16 +31,6 @@
 #include <linux/gpio.h>
 #include <linux/console.h>
 #include <linux/reboot.h>
-#include <linux/delay.h>
-#include <linux/i2c.h>
-
-#ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
-#include <linux/i2c/panjit_ts.h>
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
-#include <linux/i2c/atmel_maxtouch.h>
-#endif
 
 #include <mach/iomap.h>
 #include <mach/io.h>
@@ -72,6 +62,11 @@
 #include "power.h"
 #include "board.h"
 #include "nvrm_pmu.h"
+#include <linux/switch_dock.h>
+#include <linux/mmc31xx.h>
+#include <linux/switch_h2w.h>
+#include <linux/leds.h>
+#include <linux/switch_hdmi.h>
 
 # define BT_RESET 0
 # define BT_SHUTDOWN 1
@@ -81,6 +76,11 @@
 #include <linux/gpio_keys.h>
 #include <linux/input.h>
 #endif
+
+#include <linux/lis35de_accel.h>
+#include <linux/isl29023_ls.h>
+#include <linux/so340010_kbd.h>
+#include <linux/pixel_qi_screen_ctrl.h>
 
 extern NvBool IsBoardTango(void);
 NvRmGpioHandle s_hGpioGlobal;
@@ -379,20 +379,32 @@ static void __init tegra_setup_sdhci(void) {
 		if (!gpio)
 			gpio_count = 0;
 		switch (gpio_count) {
+        	case 3://add by navy to control sd power on or off
+            		plat->gpio_nr_wp = -1;
+			plat->gpio_nr_cd = 8*gpio[0].Port + gpio[0].Pin;
+			plat->gpio_polarity_cd = active_high(&gpio[0]);
+            		plat->gpio_nr_en = 8*gpio[1].Port + gpio[1].Pin;
+			plat->gpio_polarity_en= active_high(&gpio[1]);
+            		break;
 		case 2:
 			plat->gpio_nr_wp = 8*gpio[1].Port + gpio[1].Pin;
 			plat->gpio_nr_cd = 8*gpio[0].Port + gpio[0].Pin;
 			plat->gpio_polarity_wp = active_high(&gpio[1]);
 			plat->gpio_polarity_cd = active_high(&gpio[0]);
+            		plat->gpio_nr_en =-1;
 			break;
 		case 1:
 			plat->gpio_nr_wp = -1;
 			plat->gpio_nr_cd = 8*gpio[0].Port + gpio[0].Pin;
 			plat->gpio_polarity_cd = active_high(&gpio[0]);
+	            //add by navy
+	            	plat->gpio_nr_en =-1;
+	            //
 			break;
 		case 0:
 			plat->gpio_nr_wp = -1;
 			plat->gpio_nr_cd = -1;
+            		plat->gpio_nr_en =-1;
 			break;
 		}
 
@@ -1173,82 +1185,6 @@ static struct platform_device tegra_touch_device = {
 };
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_PANJIT_I2C
-static struct panjit_i2c_ts_platform_data panjit_data = {
-	.gpio_reset = TEGRA_GPIO_PQ7,
-};
-
-static const struct i2c_board_info ventana_i2c_bus1_touch_info[] = {
-	{
-	 I2C_BOARD_INFO("panjit_touch", 0x3),
-	 .irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV6),
-	 .platform_data = &panjit_data,
-	 },
-};
-
-static int __init ventana_touch_init_panjit(void)
-{
-	tegra_gpio_enable(TEGRA_GPIO_PV6);	/* FIXME:  Ventana-specific GPIO assignment	*/
-	tegra_gpio_enable(TEGRA_GPIO_PQ7);	/* FIXME:  Ventana-specific GPIO assignment	*/
-	i2c_register_board_info(0, ventana_i2c_bus1_touch_info, 1);
-
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_ATMEL_MT_T9
-/* Atmel MaxTouch touchscreen              Driver data */
-/*-----------------------------------------------------*/
-/*
- * Reads the CHANGELINE state; interrupt is valid if the changeline
- * is low.
- */
-static u8 read_chg()
-{
-	return gpio_get_value(TEGRA_GPIO_PV6);
-}
-
-static u8 valid_interrupt()
-{
-	return !read_chg();
-}
-
-static struct mxt_platform_data Atmel_mxt_info = {
-	/* Maximum number of simultaneous touches to report. */
-	.numtouch = 10,
-	// TODO: no need for any hw-specific things at init/exit?
-	.init_platform_hw = NULL,
-	.exit_platform_hw = NULL,
-	.max_x = 1366,
-	.max_y = 768,
-	.valid_interrupt = &valid_interrupt,
-	.read_chg = &read_chg,
-};
-
-static struct i2c_board_info __initdata i2c_info[] = {
-	{
-	 I2C_BOARD_INFO("maXTouch", MXT_I2C_ADDRESS),
-	 .irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV6),
-	 .platform_data = &Atmel_mxt_info,
-	 },
-};
-
-static int __init ventana_touch_init_atmel(void)
-{
-	tegra_gpio_enable(TEGRA_GPIO_PV6);	/* FIXME:  Ventana-specific GPIO assignment	*/
-	tegra_gpio_enable(TEGRA_GPIO_PQ7);	/* FIXME:  Ventana-specific GPIO assignment	*/
-
-	gpio_set_value(TEGRA_GPIO_PQ7, 0);
-	msleep(1);
-	gpio_set_value(TEGRA_GPIO_PQ7, 1);
-	msleep(100);
-
-	i2c_register_board_info(0, i2c_info, 1);
-
-	return 0;
-}
-#endif
-
 #ifdef CONFIG_INPUT_TEGRA_ODM_ACCEL
 static struct platform_device tegra_accelerometer_device = {
 	.name = "tegra_accelerometer",
@@ -1260,6 +1196,308 @@ static struct platform_device tegra_accelerometer_device = {
 static struct platform_device tegra_scrollwheel_device = {
 	.name = "tegra_scrollwheel",
 	.id   = -1,
+};
+#endif
+
+#ifdef CONFIG_KEYBOARD_SO340010
+
+#if (defined(CONFIG_7373C_V20)||defined(CONFIG_7564C_V10))
+struct so340010_kbd_platform_data so340010_kbd_pdata = {
+	.i2c_instance = 1,
+    .i2c_address = SO340010_I2C_ADDRESS,
+	.i2c_speed = SO340010_I2C_SPEED,
+	.i2c_timeout = SO340010_I2C_TIMEOUT,
+};
+#else
+struct so340010_kbd_platform_data so340010_kbd_pdata = {
+	.i2c_instance = 0,
+    .i2c_address = SO340010_I2C_ADDRESS,
+    .i2c_speed = SO340010_I2C_SPEED,
+    .i2c_timeout = SO340010_I2C_TIMEOUT,
+};
+#endif
+static struct platform_device so340010_kbd_device = {
+	.name = "so340010_kbd",
+	.id = -1,
+	.dev = {
+		.platform_data = &so340010_kbd_pdata,
+	},
+};
+#endif
+
+#ifdef CONFIG_SWITCH_DOCK
+#if defined(CONFIG_7265C_V20)
+static struct dock_switch_platform_data dock_switch_data = {
+	.gpio_desktop = 8*('h'-'a')+0,		/* Your gpio number*/
+	.gpio_desktop_active_low = 0,		/* Is gpio active low ?*/
+	.gpio_car = 0,				/* If donot have an car dock, leave it 0 */
+	.gpio_car_active_low = 0,		/* Car dock active low ?*/
+};
+#elif defined(CONFIG_7564C_V10)
+   static struct dock_switch_platform_data dock_switch_data = {
+       // .gpio_desktop = 8*('h'-'a')+0,//TEGRA_GPIO_DESKTOP_DOCK;/* Your gpio number*/
+        .gpio_desktop = 8*('x'-'a')+7,
+        .gpio_desktop_active_low = 1,           /* Is gpio active low ?*/
+        .gpio_car = 0,                          /* If donot have an car dock, leave it 0 */
+        .gpio_car_active_low = 0,               /* Car dock active low ?*/
+};
+#else
+static struct dock_switch_platform_data dock_switch_data = {
+        .gpio_desktop = 8*('h'-'a')+0,		/* Your gpio number*/
+        .gpio_desktop_active_low = 1,           /* Is gpio active low ?*/
+        .gpio_car = 0,                          /* If donot have an car dock, leave it 0 */
+        .gpio_car_active_low = 0,               /* Car dock active low ?*/
+};
+
+#endif
+
+static struct platform_device switch_dock_device = {
+	.name = DOCK_SWITCH_NAME,
+	.id = -1,
+	.dev = {
+		.platform_data = &dock_switch_data,
+	},
+};
+#endif
+
+#if defined(CONFIG_YOKU_0563113_BATTERY)
+static struct platform_device yoku_0563113_battery_device = 
+{
+	.name = "yoku_0563113_battery",
+	.id = -1,
+};
+#endif
+#if (defined(CONFIG_SMBA1002_BATTERY) || defined(CONFIG_SMBA1011_BATTERY))
+static struct platform_device smba1002_battery_device = 
+{
+	.name = "smba10xx_battery",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_INPUT_GPS_CONTROL
+static struct platform_device gps_control_device = {
+	.name = "gps_control",
+	.id = -1, 
+};
+#endif
+
+#ifdef CONFIG_INPUT_DUMMY_SENSOR
+static struct platform_device dummy_sensor_device = 
+{
+	.name = "dummy_sensor",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_INPUT_LIS35DE_ACCEL
+
+#if ((defined(CONFIG_7379Y_V11)))
+struct lis35de_platform_data lis35de_pdata = {
+	.i2c_instance = 1,
+	.i2c_address =  LIS35DE_I2C_ADDRESS, 
+	.update_interval = 20, 
+	.intr_gpio = TEGRA_GPIO_PJ0, 
+	.flag = 0, 
+};
+
+#elif (defined(CONFIG_7373C_V20)||defined(CONFIG_7564C_V10))
+struct lis35de_platform_data lis35de_pdata = {
+    .i2c_instance = 1,
+    .i2c_address =  LIS35DE_I2C_ADDRESS,
+    .update_interval = 20,
+    .intr_gpio = TEGRA_GPIO_PJ0,
+    .flag = LIS35DE_FLIP_X | LIS35DE_FLIP_Y,
+};
+#elif defined(CONFIG_7113C_V10)
+struct lis35de_platform_data lis35de_pdata = {
+	.i2c_instance = 0,
+	.i2c_address = LIS35DE_I2C_ADDRESS, 
+	.update_interval = 20, 
+	.intr_gpio = TEGRA_GPIO_PJ0, 
+	.flag = LIS35DE_FLIP_X | LIS35DE_FLIP_Y,
+};
+#else //default configuration
+struct lis35de_platform_data lis35de_pdata = {
+	.i2c_instance = 0,
+	.i2c_address = LIS35DE_I2C_ADDRESS, 
+	.update_interval = 20, 
+	.intr_gpio = TEGRA_GPIO_PJ0, 
+	//.flag = LIS35DE_FLIP_X | LIS35DE_FLIP_Y, 	
+	.flag = 0,
+};
+#endif
+
+static struct platform_device lis35de_accelerometer_device = 
+{
+	.name = LIS35DE_DEVICE_NAME, 
+	.id = -1,
+	.dev = {
+		.platform_data = &lis35de_pdata, 
+	}, 
+};
+#endif
+
+#ifdef CONFIG_INPUT_ISL29023_LS
+
+#if (defined(CONFIG_7379Y_V11) || defined(CONFIG_7373C_V20)||defined(CONFIG_7564C_V10))
+struct isl29023_platform_data isl29023_pdata = {
+	.i2c_instance = 1, 
+	.i2c_address = ISL29023_I2C_ADDRESS, 
+	.update_interval = 200, 
+	.intr_gpio = 0, 
+};
+#else
+struct isl29023_platform_data isl29023_pdata = {
+	.i2c_instance = 0, 
+	.i2c_address = ISL29023_I2C_ADDRESS, 
+	.update_interval = 200, 
+	.intr_gpio = 0, 
+};
+#endif
+
+static struct platform_device isl29023_ls_device = {
+	.name = ISL29023_LS_DEVICE_NAME,
+	.id = -1,
+	.dev = {
+		.platform_data = &isl29023_pdata, 
+	}, 
+};
+
+#endif
+
+#ifdef CONFIG_SENSORS_MMC3140
+#ifdef CONFIG_7379Y_V11
+static struct mmc31xx_platform_data mmc31xx_pdata = {
+	.i2c_instance = 1, 
+	.i2c_address = 0x30 << 1, 
+};
+#endif
+static struct platform_device mmc3140_magnetic_sensor_device = {
+	.name = MMC31XX_DEV_NAME,
+	.id = -1,
+	.dev = {
+		.platform_data = &mmc31xx_pdata, 
+	},
+};
+#endif
+
+#ifdef CONFIG_PIXEL_QI_SCREEN_CTRL
+static struct platform_device pixel_qi_screen_ctrl_device = {
+	.name = PQS_CTRL_DRV_NAME,
+	.dev = {
+		.platform_data = TEGRA_GPIO_PD3, 
+	},
+	.id = -1, 
+};
+#endif
+
+#ifdef CONFIG_SWITCH_H2W
+#if (defined(CONFIG_7379Y_V11) || defined(CONFIG_7373C_V20)||defined(CONFIG_7564C_V10)||defined(CONFIG_7332C_V21))
+static struct switch_h2w_platform_data switch_h2w_pdata = {
+	.hp_det_port = 'w' - 'a', 
+	.hp_det_pin = 2, 
+	.hp_det_active_low = 1, 
+	.have_dock_hp = 0, 
+};
+
+#elif defined(CONFIG_7265C_V20)
+static struct switch_h2w_platform_data switch_h2w_pdata = {
+        .hp_det_port = 'w' - 'a',
+        .hp_det_pin = 2,
+        .hp_det_active_low = 1,
+        
+        #ifdef CONFIG_SWITCH_DOCK_H2W
+        .have_dock_hp = 1,
+        .dock_hp_det_port='x'-'a',
+		.dock_hp_det_pin=7,
+		.dock_hp_det_active_low=0,
+		#else
+		.have_dock_hp = 0,
+		#endif
+};
+
+//#elif defined(CONFIG_7323C_V21) 1004 or 1009
+#else
+static struct switch_h2w_platform_data switch_h2w_pdata = {
+        .hp_det_port = 'w' - 'a',
+        .hp_det_pin = 2,
+        .hp_det_active_low = 1,
+        
+        #ifdef CONFIG_SWITCH_DOCK_H2W
+        .have_dock_hp = 1,
+        .dock_hp_det_port='t'-'a',
+		.dock_hp_det_pin=5,
+		.dock_hp_det_active_low=1,
+		#else
+		.have_dock_hp = 0,
+		#endif
+};
+
+#endif
+
+static struct platform_device switch_h2w_device = {
+	.name = H2W_SWITCH_DEV_NAME, 
+	.id = -1,
+	.dev = {
+		.platform_data = &switch_h2w_pdata, 
+	}, 
+};
+#endif
+	
+#ifdef CONFIG_SWITCH_HDMI
+static struct platform_device switch_hdmi_device = {
+	.name = HDMI_SWITCH_NAME,
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_LEDS_GPIO
+static struct gpio_led gpio_leds[] = {
+#ifdef CONFIG_7379Y_V11
+	{
+		.name = "cpu", 
+		.default_trigger = "heartbeat",
+		.gpio = TEGRA_GPIO_PI3,
+		.active_low = 0,
+		.retain_state_suspended = 0,
+	},
+	{
+		.name = "cpu-busy",
+		.gpio = TEGRA_GPIO_PI4,
+		.active_low = 0,
+		.retain_state_suspended = 0,
+		.default_state = LEDS_GPIO_DEFSTATE_OFF,
+	},
+#endif
+};
+
+static struct gpio_led_platform_data gpio_led_platform_data = {
+	.num_leds = ARRAY_SIZE(gpio_leds),
+	.leds = gpio_leds, 
+	.gpio_blink_set = NULL, 
+};
+
+static struct platform_device gpio_led_platform_device = {
+	.name = "leds-gpio", 
+	.id = -1,
+	.dev = {
+		.platform_data = &gpio_led_platform_data, 
+	}, 
+};
+#endif
+
+#ifdef CONFIG_SMBA1006_BATTERY_LED
+static struct platform_device smba1006_battery_led_platform_device = {
+	.name = "smba1006_battery_led",
+	.id = -1,
+};
+#endif
+
+#ifdef CONFIG_SMB_WIFI_LED
+static struct platform_device wifi_led_platform_device = {
+	.name = "WIFI_LED", 
+	.id = -1, 
 };
 #endif
 
@@ -1405,7 +1643,7 @@ static void tegra_setup_spi(void) { }
 #endif
 
 #ifdef CONFIG_I2C_TEGRA
-#ifdef CONFIG_TEGRA_ODM_VENTANA
+#if (defined(CONFIG_TEGRA_ODM_VENTANA) || defined(CONFIG_7379Y_V11) || defined(CONFIG_7373C_V20) ||defined(CONFIG_7564C_V10))
 static struct tegra_i2c_plat_parms tegra_i2c_platform[] = {
 	[0] = {
 		.adapter_nr = 0,
@@ -1560,7 +1798,8 @@ static noinline void __init tegra_setup_i2c(void)
 		if (!mux)
 			continue;
 
-#ifndef CONFIG_TEGRA_ODM_VENTANA
+//#ifndef CONFIG_TEGRA_ODM_VENTANA
+#if ((!defined(CONFIG_TEGRA_ODM_VENTANA)) && (!defined(CONFIG_TEGRA_ODM_HARMONY)))
 		if (mux == NVODM_QUERY_PINMAP_MULTIPLEXED) {
 			pr_err("%s: unable to register %s.%d (multiplexed)\n",
 			       __func__, dev->name, dev->id);
@@ -1797,11 +2036,6 @@ postcore_initcall(tegra_setup_data);
 
 void __init tegra_setup_nvodm(bool standard_i2c, bool standard_spi)
 {
-#if	defined(CONFIG_TOUCHSCREEN_PANJIT_I2C) && \
-	defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
-	NvOdmBoardInfo	BoardInfo;
-#endif
-
 	NvRmGpioOpen(s_hRmGlobal, &s_hGpioGlobal);
 	tegra_setup_debug_uart();
 	tegra_setup_hcd();
@@ -1814,33 +2048,69 @@ void __init tegra_setup_nvodm(bool standard_i2c, bool standard_spi)
 		tegra_setup_i2c();
 	if (standard_spi)
 		tegra_setup_spi();
-#if	defined(CONFIG_TOUCHSCREEN_PANJIT_I2C) && \
-	defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
-#define NVODM_ATMEL_TOUCHSCREEN    0x0A00
-#define NVODM_PANJIT_TOUCHSCREEN   0x0000
-#define BOARD_VENTANA              0x024B
-	if (NvOdmPeripheralGetBoardInfo(BOARD_VENTANA, &BoardInfo)) {
-		/* Diagnostics print messages to print Board SKU
-		   printk("\n\nRRC:  Board ID:  %04X\n\n", BoardInfo.SKU);
-		 */
-		switch (BoardInfo.SKU & 0xFF00) {
-		case NVODM_ATMEL_TOUCHSCREEN:
-			ventana_touch_init_atmel();
-			break;
-
-		default:
-			ventana_touch_init_panjit();
-			break;
-		}
-	} else
-		ventana_touch_init_panjit();
-#elif defined(CONFIG_TOUCHSCREEN_ATMEL_MT_T9)
-	ventana_touch_init_atmel();
-#elif defined(CONFIG_TOUCHSCREEN_PANJIT_I2C)
-	ventana_touch_init_panjit();
-#endif
 	tegra_setup_w1();
 	pm_power_off = tegra_system_power_off;
+	#ifdef CONFIG_KEYBOARD_SO340010
+	(void)platform_device_register(&so340010_kbd_device);
+	#endif
+	
+	#if defined(CONFIG_YOKU_0563113_BATTERY)
+	(void) platform_device_register(&yoku_0563113_battery_device);
+	#endif
+	
+	#if (defined(CONFIG_SMBA1011_BATTERY)||defined(CONFIG_SMBA1002_BATTERY))
+	(void) platform_device_register(&smba1002_battery_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_GPS_CONTROL
+	(void) platform_device_register(&gps_control_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_DUMMY_SENSOR
+	(void) platform_device_register(&dummy_sensor_device);
+	#endif
+	
+	#ifdef CONFIG_INPUT_ISL29023_LS
+		(void) platform_device_register(&isl29023_ls_device);
+	#endif
+	
+	#ifdef CONFIG_SENSORS_MMC3140
+	(void) platform_device_register(&mmc3140_magnetic_sensor_device);
+	#endif
+	
+	#ifdef CONFIG_PIXEL_QI_SCREEN_CTRL
+	(void) platform_device_register(&pixel_qi_screen_ctrl_device);
+	#endif
+
+	#ifdef CONFIG_INPUT_LIS35DE_ACCEL
+	(void) platform_device_register(&lis35de_accelerometer_device);
+	#endif
+	
+	#ifdef CONFIG_SWITCH_DOCK
+	(void) platform_device_register(&switch_dock_device);
+	#endif
+	
+	#ifdef CONFIG_SWITCH_H2W
+	(void) platform_device_register(&switch_h2w_device);
+	#endif
+	
+	#ifdef CONFIG_SWITCH_HDMI
+	(void) platform_device_register(&switch_hdmi_device);
+	#endif
+		
+	#ifdef CONFIG_LEDS_GPIO
+	(void) platform_device_register(&gpio_led_platform_device);
+	#endif
+	
+	#ifdef CONFIG_SMBA1006_BATTERY_LED
+	(void) platform_device_register(&smba1006_battery_led_platform_device);
+	#endif
+	
+	#ifdef CONFIG_SMB_WIFI_LED
+	(void) platform_device_register(&wifi_led_platform_device);
+	#endif
+
+
 	tegra_setup_suspend();
 	tegra_setup_reboot();
 }

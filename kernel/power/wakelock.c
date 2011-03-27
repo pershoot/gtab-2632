@@ -401,7 +401,7 @@ static void wake_lock_internal(
 	BUG_ON(type >= WAKE_LOCK_TYPE_COUNT);
 	BUG_ON(!(lock->flags & WAKE_LOCK_INITIALIZED));
 #ifdef CONFIG_WAKELOCK_STAT
-	if (type == WAKE_LOCK_SUSPEND && wait_for_wakeup) {
+	if (type == WAKE_LOCK_SUSPEND && wait_for_wakeup && lock->name == "gpio_f4_wake") {
 		if (debug_mask & DEBUG_WAKEUP)
 			pr_info("wakeup wake lock: %s\n", lock->name);
 		wait_for_wakeup = 0;

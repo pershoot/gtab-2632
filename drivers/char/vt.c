@@ -3046,7 +3046,7 @@ static int bind_con_driver(const struct consw *csw, int first, int last,
 
 		if (k >= 0) {
 			vc = vc_cons[k].d;
-			update_screen(vc);
+			//update_screen(vc); //by navy
 		}
 	} else
 		printk("to %s\n", desc);

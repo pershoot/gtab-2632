@@ -1107,7 +1107,7 @@ void mmc_rescan(struct work_struct *work)
 
 	mmc_power_up(host);
 	mmc_go_idle(host);
-
+	mdelay(200);
 	mmc_send_if_cond(host, host->ocr_avail);
 
 	/*

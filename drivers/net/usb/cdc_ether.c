@@ -64,6 +64,12 @@ static int is_wireless_rndis(struct usb_interface_descriptor *desc)
 
 #endif
 
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+static const u8 mbm_guid[16] = {
+	0xa3, 0x17, 0xa8, 0x8b, 0x04, 0x5e, 0x4f, 0x01,
+	0xa6, 0x07, 0xc0, 0xff, 0xcb, 0x7e, 0x39, 0x2a,
+};
+#endif
 /*
  * probes control interface, claims data interface, collects the bulk
  * endpoints, activates data interface (if needed), maybe sets MTU.
@@ -79,7 +85,10 @@ int usbnet_generic_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 	int				status;
 	int				rndis;
 	struct usb_driver		*driver = driver_of(intf);
-
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)	
+	struct usb_cdc_mdlm_desc	*desc = NULL;
+	struct usb_cdc_mdlm_detail_desc *detail = NULL;
+#endif
 	if (sizeof dev->data < sizeof *info)
 		return -EDOM;
 
@@ -229,6 +238,36 @@ int usbnet_generic_cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 			 * side link address we were given.
 			 */
 			break;
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+		case USB_CDC_MDLM_TYPE:
+			if (desc) {
+				dev_dbg(&intf->dev, "extra MDLM descriptor\n");
+				goto bad_desc;
+			}
+
+			desc = (void *)buf;
+
+			if (desc->bLength != sizeof(*desc))
+				goto bad_desc;
+
+			if (memcmp(&desc->bGUID, mbm_guid, 16))
+				goto bad_desc;
+			break;
+		case USB_CDC_MDLM_DETAIL_TYPE:
+			if (detail) {
+				dev_dbg(&intf->dev, "extra MDLM detail descriptor\n");
+				goto bad_desc;
+			}
+
+			detail = (void *)buf;
+
+			if (detail->bGuidDescriptorType == 0) {
+				if (detail->bLength < (sizeof(*detail) + 1))
+					goto bad_desc;
+			} else
+				goto bad_desc;
+			break;
+#endif
 		}
 next_desc:
 		len -= buf [0];	/* bLength */
@@ -410,7 +449,13 @@ static int cdc_bind(struct usbnet *dev, struct usb_interface *intf)
 	 */
 	return 0;
 }
-
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+static int cdc_manage_power(struct usbnet *dev, int on)
+{
+	dev->intf->needs_remote_wakeup = on;
+	return 0;
+}
+#endif
 static const struct driver_info	cdc_info = {
 	.description =	"CDC Ethernet Device",
 	.flags =	FLAG_ETHER,
@@ -418,6 +463,9 @@ static const struct driver_info	cdc_info = {
 	.bind =		cdc_bind,
 	.unbind =	usbnet_cdc_unbind,
 	.status =	cdc_status,
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+	.manage_power =	cdc_manage_power,
+#endif
 };
 
 /*-------------------------------------------------------------------------*/
@@ -529,6 +577,12 @@ static const struct usb_device_id	products [] = {
 			USB_CDC_PROTO_NONE),
 	.driver_info = (unsigned long) &cdc_info,
 }, {
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+	/* Ericsson F3307g */
+	USB_INTERFACE_INFO(USB_CLASS_COMM, USB_CDC_SUBCLASS_MDLM,
+			USB_CDC_PROTO_NONE),
+		.driver_info = (unsigned long) &cdc_info,
+#else
 	/* Ericsson F3507g */
 	USB_DEVICE_AND_INTERFACE_INFO(0x0bdb, 0x1900, USB_CLASS_COMM,
 			USB_CDC_SUBCLASS_MDLM, USB_CDC_PROTO_NONE),
@@ -598,6 +652,7 @@ static const struct usb_device_id	products [] = {
 	USB_DEVICE_AND_INTERFACE_INFO(0x413c, 0x8184, USB_CLASS_COMM,
 			USB_CDC_SUBCLASS_MDLM, USB_CDC_PROTO_NONE),
 	.driver_info = (unsigned long) &cdc_info,
+#endif
 },
 	{ },		// END
 };
@@ -610,6 +665,10 @@ static struct usb_driver cdc_driver = {
 	.disconnect =	usbnet_disconnect,
 	.suspend =	usbnet_suspend,
 	.resume =	usbnet_resume,
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+	.reset_resume =	usbnet_resume,
+	.supports_autosuspend = 1,
+#endif
 };
 
 

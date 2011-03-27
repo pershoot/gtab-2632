@@ -132,9 +132,22 @@ Tps6586xRtcCountWrite(
     ReadBuffer = ReadBuffer & 0xDF;
     Tps6586xI2cWrite8(hDevice, TPS6586x_RC0_RTC_CTRL, ReadBuffer);
 
+    #if 0
     Tps6586xI2cWrite32(hDevice, TPS6586x_RC6_RTC_COUNT4, (Count<<2));
     Tps6586xI2cWrite8(hDevice,  TPS6586x_RCA_RTC_COUNT0, 0);
-
+    #else//fix time saving issue
+    NvU32 CountT,CountCys;
+    CountCys=10;
+    CountT=0;
+    do
+    {
+    	Tps6586xI2cWrite32(hDevice, TPS6586x_RC6_RTC_COUNT4, (Count<<2));
+        Tps6586xI2cWrite8(hDevice,  TPS6586x_RCA_RTC_COUNT0, 0);
+    	Tps6586xI2cRead32(hDevice, TPS6586x_RC6_RTC_COUNT4, &CountT);
+    
+    	CountCys--;
+    }while(CountCys&&(CountT>>2)!=Count);
+    #endif
     // Set RTC_ENABLE after writing RTC_COUNT
     Tps6586xI2cRead8(hDevice, TPS6586x_RC0_RTC_CTRL, &ReadBuffer);
     ReadBuffer = ReadBuffer | 0x20;

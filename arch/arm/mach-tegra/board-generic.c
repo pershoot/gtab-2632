@@ -293,6 +293,9 @@ static void __init do_system_init(bool standard_i2c, bool standard_spi)
 	tegra_android_platform.serial_number = kstrdup(serial, GFP_KERNEL);
 #endif
 	platform_add_devices(platform_devices, ARRAY_SIZE(platform_devices));
+
+	system_serial_high = chip_id[0];
+	system_serial_low = chip_id[1];
 }
 
 #ifdef CONFIG_BT_BLUESLEEP

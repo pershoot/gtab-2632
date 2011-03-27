@@ -377,4 +377,44 @@ config USB_CDC_PHONET
 	  cellular modem, as found on most Nokia handsets with the
 	  "PC suite" USB profile.
 
+config ERICSSON_F3307_ENABLE
+	tristate "Host for Ericsson F3307 module"
+	depends on USB_USBNET
+	help
+	  This option enables hosting "F3307" USB networking links.
+
+config HOJY_TD688_ENABLE
+	tristate "Host for HOJY TD688 module"
+	depends on USB_USBNET
+	help
+	  This option enables hosting "TD688" USB networking links.
+
+
+config HOJY_W668_ENABLE
+	tristate "Host for HOJY W668 module"
+	depends on USB_USBNET
+	help
+	  This option enables hosting "W668" USB networking links.
+
+config USB_NET_QF9700
+	tristate "QF9700 based USB 2.0 10/100 ethernet devices support"
+	depends on USB_USBNET
+	select CRC32
+	help
+	  This option adds support for QF9700 based USB 2.0 10/100 Ethernet adapters.
+config USB_NET_CDC_NCM
+    tristate "CDC NCM support"
+    depends on USB_USBNET
+    default y
+    help
+      This driver provides support for CDC NCM (Network Control Model
+      Device USB Class Specification). The CDC NCM specification is
+      available from <http://www.usb.org/>.
+
+	Say "y" to link the driver statically, or "m" to build a
+  	dynamically linked module.
+									  	  
+	This driver should work with at least the following devices:
+	* ST-Ericsson M570 (reference design)
+	  
 endmenu

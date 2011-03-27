@@ -375,6 +375,19 @@ NvOdmPeripheralGetBoardInfo(
     NvU16 BoardId,
     NvOdmBoardInfo* pBoardInfo);
 
+ /**
+  * Control the wifi LED interface. 
+  *
+  * @param enable Identifies if want to turn on/off the wifi LED.
+  * @return NULL.
+  */
+void
+Nv_WIFI_LED_Control(unsigned int enable);
+
+#if defined(CONFIG_7564C_V10)
+void Nv_Suspend_LED_Control(unsigned int enable);//hzj added
+#endif
+
 #if defined(__cplusplus)
 }
 #endif

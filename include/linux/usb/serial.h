@@ -285,7 +285,9 @@ extern void usb_serial_disconnect(struct usb_interface *iface);
 
 extern int usb_serial_suspend(struct usb_interface *intf, pm_message_t message);
 extern int usb_serial_resume(struct usb_interface *intf);
-
+#if defined(CONFIG_ZTE_3G_MODULE)
+extern int usb_serial_reset_resume(struct usb_interface *intf);//Add by Conlin; 2011-01-22
+#endif
 extern int ezusb_writememory(struct usb_serial *serial, int address,
 			     unsigned char *data, int length, __u8 bRequest);
 extern int ezusb_set_reset(struct usb_serial *serial, unsigned char reset_bit);

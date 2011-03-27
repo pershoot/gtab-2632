@@ -44,7 +44,7 @@ static void led_heartbeat_function(unsigned long data)
 		heartbeat_data->period = 300 +
 			(6720 << FSHIFT) / (5 * avenrun[0] + (7 << FSHIFT));
 		heartbeat_data->period =
-			msecs_to_jiffies(heartbeat_data->period);
+			msecs_to_jiffies(heartbeat_data->period * 2);
 		delay = msecs_to_jiffies(70);
 		heartbeat_data->phase++;
 		brightness = led_cdev->max_brightness;

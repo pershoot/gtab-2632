@@ -621,7 +621,7 @@ static void fbcon_prepare_logo(struct vc_data *vc, struct fb_info *info,
 
 	if (CON_IS_VISIBLE(vc) && vc->vc_mode == KD_TEXT) {
 		fbcon_clear_margins(vc, 0);
-		update_screen(vc);
+		//update_screen(vc); //by navy
 	}
 
 	if (save) {

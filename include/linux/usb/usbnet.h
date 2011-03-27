@@ -55,6 +55,9 @@ struct usbnet {
 	struct sk_buff_head	done;
 	struct sk_buff_head	rxq_pause;
 	struct urb		*interrupt;
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+	struct usb_anchor	deferred;
+#endif
 	struct tasklet_struct	bh;
 
 	struct work_struct	kevent;
@@ -65,6 +68,10 @@ struct usbnet {
 #		define EVENT_STS_SPLIT	3
 #		define EVENT_LINK_RESET	4
 #		define EVENT_RX_PAUSED	5
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+#		define EVENT_DEV_WAKING 6
+#		define EVENT_DEV_ASLEEP 7
+#endif
 };
 
 static inline struct usb_driver *driver_of(struct usb_interface *intf)
@@ -107,6 +114,10 @@ struct driver_info {
 	/* see if peer is connected ... can sleep */
 	int	(*check_connect)(struct usbnet *);
 
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+	/* (dis)activate runtime power management */
+	int	(*manage_power)(struct usbnet *, int);
+#endif
 	/* for status polling */
 	void	(*status)(struct usbnet *, struct urb *);
 

@@ -198,4 +198,8 @@ if TEGRA_ODM_KIT
 source "arch/arm/mach-tegra/odm_kit/Kconfig"
 endif
 
+if TEGRA_ODM_HARMONY
+source "arch/arm/mach-tegra/malata_smb/Kconfig"
+endif
+
 endif

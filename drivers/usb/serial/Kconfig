@@ -609,5 +609,10 @@ config USB_SERIAL_DEBUG
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called usb-debug.
+	
+config ZTE_3G_MODULE
+	tristate "ZTE 3G Module support"
+	help
+		This option add the reset_resume interface for ZTE 3G Module.
 
 endif # USB_SERIAL

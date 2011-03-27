@@ -811,3 +811,29 @@ void tegra_configure_dpd_kbc(unsigned int kbc_rows, unsigned int kbc_cols)
 	writel(dpd_oride, pmc + PMC_DPAD_ORIDE);
 }
 #endif
+
+#if defined(CONFIG_EMBEDDED_MMC_START_OFFSET)
+void set_aoint_bit_of_pmc(void)
+{
+	unsigned long pmc_control_reg;
+	
+	pmc_control_reg = readl(pmc + PMC_CTRL);
+	pmc_control_reg |= 0x2000;
+	writel(pmc_control_reg, (pmc + PMC_CTRL));
+}
+/* //for debug
+NvBool check_aoint_bit_of_pmc(void)
+{
+	unsigned long pmc_control_reg;
+	unsigned long pmc_control_reg_result = 0;
+	
+	pmc_control_reg = readl(pmc + PMC_CTRL);
+	pmc_control_reg_result = pmc_control_reg & 0x2000;
+	
+	if(0 == pmc_control_reg_result)
+		return NV_FALSE;
+	else
+		return NV_TRUE;
+}
+*/
+#endif

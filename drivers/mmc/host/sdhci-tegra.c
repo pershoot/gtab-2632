@@ -52,6 +52,10 @@ struct tegra_sdhci {
 	int			irq_cd;
 	int			gpio_wp;
 	int			gpio_polarity_wp;
+    //add by navy
+    int gpio_en; /*card power enable, -1 if unused */
+    int gpio_polarity_en; /* active state for enable*/
+    //add end
 	unsigned int		debounce;
 	unsigned long		max_clk;
 	bool			card_present;
@@ -77,6 +81,10 @@ static irqreturn_t card_detect_isr(int irq, void *dev_id)
 
 	host->card_present =
 		(gpio_get_value(host->gpio_cd) == host->gpio_polarity_cd);
+        if(host->gpio_en!=-1)
+        {
+                gpio_set_value(host->gpio_en,host->card_present?host->gpio_polarity_en:!host->gpio_polarity_en);
+        }
 	smp_wmb();
 	sdhci_card_detect_callback(sdhost);
 
@@ -157,6 +165,8 @@ static struct sdhci_ops tegra_sdhci_ops = {
 	.set_clock		= tegra_sdhci_set_clock,
 };
 
+extern void Tps6586x_Resume_Isr_Register(void);
+
 int __init tegra_sdhci_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *sdhost;
@@ -164,6 +174,8 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	struct tegra_sdhci_platform_data *plat = pdev->dev.platform_data;
 	struct resource *res;
 	int ret = -ENODEV;
+        static int pmu_count=0;
+        int enable=0;
 
 	if (pdev->id == -1) {
 		dev_err(&pdev->dev, "dynamic instance assignment not allowed\n");
@@ -222,6 +234,10 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 	host->gpio_polarity_cd = plat->gpio_polarity_cd;
 	host->gpio_wp = plat->gpio_nr_wp;
 	host->gpio_polarity_wp = plat->gpio_polarity_wp;
+	//add by navy
+    host->gpio_en = plat->gpio_nr_en;
+	host->gpio_polarity_en = plat->gpio_polarity_en;
+    //add end
 	host->card_always_on = plat->is_always_on;
 	dev_dbg(&pdev->dev, "write protect: %d card detect: %d\n",
 		host->gpio_wp, host->gpio_cd);
@@ -275,6 +291,33 @@ int __init tegra_sdhci_probe(struct platform_device *pdev)
 				host->gpio_polarity_cd);
 	}
 skip_gpio_cd:
+    
+    //add by navy
+    ret = 0;
+    if (host->gpio_en != -1)
+    {
+        ret = gpio_request(host->gpio_en, "card_poweron");
+        if (ret < 0) {
+            dev_err(&pdev->dev, "request en gpio failed\n");
+            host->gpio_en = -1;
+            goto skip_gpio_en;
+        }
+        
+        ret = gpio_direction_output(host->gpio_en,0);
+        if (ret < 0) {
+            dev_err(&pdev->dev, "failed to configure GPIO\n");
+            gpio_free(host->gpio_en);
+            host->gpio_en = -1;
+            goto skip_gpio_en;
+        }
+
+        if((host->gpio_cd!=-1)&&host->card_present) enable=1;
+        else if(host->gpio_cd==-1) enable=1;
+        else enable =0;
+        gpio_set_value(host->gpio_en,enable?host->gpio_polarity_en:!host->gpio_polarity_en);
+
+    }
+skip_gpio_en:
 	ret = 0;
 	if (host->gpio_wp != -1) {
 		ret = gpio_request(host->gpio_wp, "write_protect");
@@ -339,6 +382,11 @@ skip_gpio_wp:
 	platform_set_drvdata(pdev, sdhost);
 
 	dev_info(&pdev->dev, "probe complete\n");
+
+        if(pmu_count==0) {
+                Tps6586x_Resume_Isr_Register();
+                pmu_count++;
+        }
 
 	return  0;
 
@@ -475,7 +523,7 @@ static int tegra_sdhci_suspend(struct device *dev)
 		/* reduce host controller clk and card clk to 100 KHz */
 		tegra_sdhci_set_clock(sdhost, clock);
 		sdhci_writew(sdhost, 0, SDHCI_CLOCK_CONTROL);
-
+		#if 0 //deleted by navy for getting into standby issue, take totally 15 minutes to get into standby mode
 		if (sdhost->max_clk > clock) {
 			div =  1 << (fls(sdhost->max_clk / clock) - 2);
 			if (div > 128)
@@ -485,7 +533,7 @@ static int tegra_sdhci_suspend(struct device *dev)
 		clk = div << SDHCI_DIVIDER_SHIFT;
 		clk |= SDHCI_CLOCK_INT_EN | SDHCI_CLOCK_CARD_EN;
 		sdhci_writew(sdhost, clk, SDHCI_CLOCK_CONTROL);
-
+		#endif
 		return ret;
 	}
 

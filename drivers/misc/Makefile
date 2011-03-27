@@ -29,3 +29,4 @@ obj-y				+= cb710/
 obj-$(CONFIG_LBEE9QMB_RFKILL)	+= lbee9qmb-rfkill.o
 obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
 obj-$(CONFIG_APANIC)		+= apanic.o
+obj-$(CONFIG_PIXEL_QI_SCREEN_CTRL)	+= pixel_qi_screen_ctrl.o

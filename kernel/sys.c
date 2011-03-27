@@ -77,6 +77,11 @@
 # define SET_TSC_CTL(a)		(-EINVAL)
 #endif
 
+#if defined(CONFIG_EMBEDDED_MMC_START_OFFSET)
+extern void set_aoint_bit_of_pmc(void);
+//extern bool check_aoint_bit_of_pmc(void); //for debug
+#endif
+
 /*
  * this is where the system-wide overflow UID and GID are defined, for
  * architectures that now have 32-bit UID/GID but didn't in the past
@@ -357,6 +362,9 @@ EXPORT_SYMBOL_GPL(kernel_power_off);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
+
+extern void misc_write(void);
+
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		void __user *, arg)
 {
@@ -413,6 +421,20 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 			return -EFAULT;
 		}
 		buffer[sizeof(buffer) - 1] = '\0';
+		if(strcmp(buffer, "recovery") == 0) {
+#if defined(CONFIG_EMBEDDED_MMC_START_OFFSET)
+			set_aoint_bit_of_pmc();
+			/*  //for debug
+			bool aoint_bit_result = check_aoint_bit_of_pmc();
+			if(true == aoint_bit_result)
+				printk("--- LINUX_REBOOT_CMD_RESTART2 -- aoint_bit is 1 --\n");
+			else
+				printk("--- LINUX_REBOOT_CMD_RESTART2 -- aoint_bit is 0 --\n");
+			*/
+#else
+			misc_write();
+#endif
+		}
 
 		kernel_restart(buffer);
 		break;

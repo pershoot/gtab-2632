@@ -420,6 +420,7 @@ struct tegra_audio_data {
 	NvAudioFxObjectHandle i2s1_rec_split;
 	NvAudioFxObjectHandle i2s2_rec_split;
 	NvAudioFxObjectHandle mroute;
+	//NvAudioFxIoDevice mi2s1_device_available;
 	NvAudioFxIoDevice mspdif_device_available;
 	int spdif_plugin;
 	int i2s1volume;

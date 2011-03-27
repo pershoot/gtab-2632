@@ -15,17 +15,19 @@ ifeq ($(CONFIG_TEGRA_ODM_WHISTLER),y)
   is_tpk_touch := y
 endif
 
-ifeq ($(CONFIG_TEGRA_ODM_HARMONY),y)
-  is_panjit_touch := y
+ifeq ($(CONFIG_TOUCHSCREEN_TEGRA_ODM_AK4183),y)
+  is_ak4183_touch := y
 endif
 
-ifeq ($(CONFIG_TEGRA_ODM_VENTANA),y)
-  is_panjit_touch := y
+ifeq ($(CONFIG_TOUCHSCREEN_TEGRA_ODM_AT168),y)
+  is_at168_touch := y
 endif
 
 ccflags-$(is_tpk_touch) += -DNV_TOUCH_TPK
-ccflags-$(is_panjit_touch) += -DNV_TOUCH_PANJIT
+ccflags-$(is_ak4183_touch) += -DNV_TOUCH_AK4183
+ccflags-$(is_at168_touch) += -DNV_TOUCH_AT168
 
 obj-y			+= nvodm_touch.o
 obj-$(is_tpk_touch)	+= nvodm_touch_tpk.o
-obj-$(is_panjit_touch)	+= nvodm_touch_panjit.o
+obj-$(is_ak4183_touch) += ak4183/
+obj-$(is_at168_touch) += at168/

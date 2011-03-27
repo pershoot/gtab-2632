@@ -25,6 +25,8 @@
 #define NETLINK_SCSITRANSPORT	18	/* SCSI Transports */
 #define NETLINK_ECRYPTFS	19
 
+#define NETLINK_LINKINFO        20      /* Used to info app level that link-up */
+
 #define MAX_LINKS 32		
 
 struct net;

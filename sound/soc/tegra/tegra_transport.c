@@ -549,6 +549,7 @@ int tegra_audiofx_init(struct tegra_audio_data* tegra_snd_cx)
 		tegra_snd_cx->mi2s1 = tegra_snd_cx->xrt_fxn.MixerCreateObject(
 						tegra_snd_cx->mixer_handle,
 						NvAudioFxI2s1Id);
+		//tegra_snd_cx->mi2s1_device_available = NvAudioFxIoDevice_Default;
 
 		tegra_snd_cx->i2s1_play_mix = tegra_snd_cx->xrt_fxn.MixerCreateObject(
 						tegra_snd_cx->mixer_handle,
@@ -689,6 +690,8 @@ static void tegra_audiofx_notifier_thread(void *arg)
 						NvAudioFxIoDeviceControlChangeMessage* iccm =
 							(NvAudioFxIoDeviceControlChangeMessage*)message;
 
+						//audio_context->mi2s1_device_available = iccm->IoDevice;
+						//tegra_audiofx_route(audio_context);
 						mutex_lock(&tegra_audio_state.mutex_lock);
 						tegra_audio_state.devices_available = iccm->IoDevice;
 						mutex_unlock(&tegra_audio_state.mutex_lock);
@@ -704,6 +707,7 @@ static void tegra_audiofx_notifier_thread(void *arg)
 							(NvAudioFxIoDeviceControlChangeMessage*)message;
 
 						audio_context->mspdif_device_available = iccm->IoDevice;
+						//tegra_audiofx_route(audio_context);
 						if (audio_context->device_id == I2S1)
 							tegra_audiofx_route(audio_context);
 					}
@@ -733,15 +737,18 @@ NvError tegra_audiofx_route(struct tegra_audio_data *audio_context)
 		audio_context->spdif_plugin) {
 		spdif_device_select = NvAudioFxIoDevice_Aux;
 	}
+	//else if(audio_context->mi2s1_device_available &
 	else if(tegra_audio_state.devices_available &
 		NvAudioFxIoDevice_HeadphoneOut) {
 		i2s1_device_select = NvAudioFxIoDevice_HeadphoneOut;
 	}
+	//else if(audio_context->mi2s1_device_available &
 	else if(tegra_audio_state.devices_available &
 		NvAudioFxIoDevice_BuiltInSpeaker) {
 		i2s1_device_select = NvAudioFxIoDevice_BuiltInSpeaker;
 	}
 	else {
+		//i2s1_device_select = audio_context->mi2s1_device_available;
 		i2s1_device_select = tegra_audio_state.devices_available;
 	}
 

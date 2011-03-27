@@ -29,7 +29,9 @@ extern "C"
 #endif
 
 // ODM policy: use ADT7461 extended=1 (standard=0) range
-#define ADT7461_ODM_EXTENDED_RANGE (1)
+//#define ADT7461_ODM_EXTENDED_RANGE (1)
+#define ADT7461_ODM_EXTENDED_RANGE (0) //by navy //for G780P
+
 
 // ODM policy: enable=1 (disable=0) ADT7461 standby mode
 #define ADT7461_ODM_STANDBY_ENABLED (1)
@@ -48,9 +50,10 @@ extern "C"
 // ODM policy: comparator limit values for critical shutdown (in degrees C)
 #define ADT7461_ODM_LOCAL_COMPARATOR_LIMIT_VALUE        (120L)
 #define ADT7461_ODM_REMOTE_COMPARATOR_LIMIT_VALUE       (115L)
-
+ 
 // ODM ADT7461 remote channel measurement offset
-#define ADT7461_ODM_REMOTE_OFFSET_VALUE                 (6L)
+//#define ADT7461_ODM_REMOTE_OFFSET_VALUE                 (6L)
+#define ADT7461_ODM_REMOTE_OFFSET_VALUE                 (0L)//by navy for G780P
 
 // ODM ADT7461 interrupt polarity
 #define ADT7461_ODM_INTR_POLARITY (NvOdmGpioPinMode_InputInterruptLow)
@@ -167,14 +170,18 @@ typedef enum
 #define ADT7461_SAMPLE_INTERVALS_MS \
         16000, 8000, 4000, 2000, 1000,  500,  250,  125,   63,   31,   16
 #define ADT7461_CONVERSION_TIME_MS \
-          115,  115,  115,  115,  115,  115,  115,  115,   13,   13,   13
+            130,  130,  130,  130,  130,  130,  130,  130,   20,   20,   20 //for G780P
+//          115,  115,  115,  115,  115,  115,  115,  115,   13,   13,   13
+            
 
-#define ADT7461_INITIAL_RATE_SETTING        (0x0A)
+
+//#define ADT7461_INITIAL_RATE_SETTING        (0x0A)
+#define ADT7461_INITIAL_RATE_SETTING        (0x08) //for G780P
 
 
 // ADT7461 I2C (SMBus) clock speed, bus timeout, retries, and fixed
 // Alert Response Address (ARA).
-#define ADT7461_I2C_SPEED_KHZ   (400)
+#define ADT7461_I2C_SPEED_KHZ   (100)
 #define ADT7461_I2C_TIMEOUT_MS  (500)
 #define ADT7461_I2C_RETRY_CNT   (2)
 #define ADT7461_ARA_RETRY_CNT   (4)

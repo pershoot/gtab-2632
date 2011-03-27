@@ -51,6 +51,9 @@ static struct usb_driver usb_serial_driver = {
 	.disconnect =	usb_serial_disconnect,
 	.suspend =	usb_serial_suspend,
 	.resume =	usb_serial_resume,
+#if defined(CONFIG_ZTE_3G_MODULE)
+	.reset_resume = usb_serial_reset_resume,
+#endif
 	.no_dynamic_id = 	1,
 };
 
@@ -1199,6 +1202,30 @@ int usb_serial_resume(struct usb_interface *intf)
 	return rv;
 }
 EXPORT_SYMBOL(usb_serial_resume);
+
+#if defined(CONFIG_ZTE_3G_MODULE)
+//Add by Conlin, 2011-01-22
+int usb_serial_reset_resume(struct usb_interface *intf)
+{
+	struct usb_serial *serial = usb_get_intfdata(intf);
+	int i;
+	struct usb_serial_port *port;
+					
+	for (i = 0; i < serial->num_ports; ++i) {
+		port = serial->port[i];
+		if (port) {
+			struct tty_struct *tty = tty_port_tty_get(&port->port);
+			if (tty) {
+				tty_vhangup(tty);
+				tty_kref_put(tty);
+			}
+		}
+	}
+						
+	return usb_serial_resume;
+}
+EXPORT_SYMBOL(usb_serial_reset_resume);
+#endif
 
 static const struct tty_operations serial_ops = {
 	.open =			serial_open,

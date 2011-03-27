@@ -149,6 +149,9 @@ static struct rb_root nvmap_handles = RB_ROOT;
 
 static struct tegra_iovmm_client *nvmap_vm_client = NULL;
 
+//extern void v7_flush_kern_cache_all(void);
+//extern void v7_clean_kern_cache_all(void);
+
 /* default heap order policy */
 static unsigned int _nvmap_heap_policy (unsigned int heaps, int numpages)
 {
@@ -1612,12 +1615,12 @@ static int _nvmap_handle_pin_locked(struct nvmap_handle *h)
 static int _nvmap_handle_unpin(struct nvmap_handle *h)
 {
 	int ret = 0;
-
 	if(!h || !h->alloc ) {
 		WARN_ON(1);
 		pr_err("%s invalid handle, returning -EINVAL\n",__func__);
 		return -EINVAL;
 	}
+
 
 	if (atomic_add_return(0, &h->pin)==0) {
 		pr_err("%s: %s attempting to unpin an unpinned handle\n",
@@ -1670,6 +1673,7 @@ static int _nvmap_handle_pin_fast(unsigned int nr, struct nvmap_handle **h)
 		pr_err("%s invalid handle, returning -EINVAL\n",__func__);
 		return -EINVAL;
 	}
+
 
 	mutex_lock(&nvmap_pin_lock);
 	for (i=0; i<nr && !ret; i++) {
@@ -1756,6 +1760,7 @@ static int _nvmap_do_pin(struct nvmap_file_priv *priv,
 		pr_err("%s invalid handle, returning -EINVAL\n",__func__);
 		return -EINVAL;
 	}
+
 
 	/* to optimize for the common case (client provided valid handle
 	 * references and the pin succeeds), increment the handle_ref pin
@@ -2426,11 +2431,11 @@ static int _nvmap_do_alloc(struct nvmap_file_priv *priv,
 				NVMAP_TRACE(NVMAP_TRACE_LFB,
 					"nvmap: lfb after alloc %lu\n",
 					_nvmap_carveout_blockstat(
-						h->carveout.co_heap,
+						h->carveout.co_heap, 
 						CARVEOUT_STAT_LARGEST_FREE));
 
 				NVMAP_TRACE(NVMAP_TRACE_FREE_SIZE,
-					"nvmap: Free size after alloc %lu\n",
+					"nvmap: Free size after alloc %lu\n", 
 					_nvmap_carveout_blockstat(
 						h->carveout.co_heap,
 						CARVEOUT_STAT_FREE_SIZE));
@@ -2847,6 +2852,17 @@ static int _nvmap_do_cache_maint(struct nvmap_handle *h,
 			outer_maint = NULL;
 	}
 
+/*	if (end - start > PAGE_SIZE * 3) {
+		if (op == NVMEM_CACHE_OP_WB) {
+			v7_clean_kern_cache_all();
+			inner_maint = NULL;
+		} else if (op == NVMEM_CACHE_OP_WB_INV) {
+			v7_flush_kern_cache_all();
+			inner_maint = NULL;
+		}
+	}
+*/
+
 	prot = _nvmap_flag_to_pgprot(h->flags, pgprot_kernel);
 
 	if (h->alloc && !h->heap_pgalloc) {
@@ -2855,6 +2871,7 @@ static int _nvmap_do_cache_maint(struct nvmap_handle *h,
 		spin_unlock(&h->carveout.co_heap->lock);
 	}
 
+	//while (start < end && (inner_maint || outer_maint)) {
 	while (start < end) {
 		struct page *page = NULL;
 		unsigned long phys;
@@ -2884,6 +2901,7 @@ static int _nvmap_do_cache_maint(struct nvmap_handle *h,
 		src = addr + (phys & ~PAGE_MASK);
 		count = min_t(size_t, end-start, PAGE_SIZE-(phys&~PAGE_MASK));
 
+		//if (inner_maint) inner_maint(src, src+count);
 		inner_maint(src, src+count);
 		if (outer_maint) outer_maint(phys, phys+count);
 		start += count;
@@ -3017,6 +3035,8 @@ static ssize_t _nvmap_do_rw_handle(struct nvmap_handle *h, int is_read,
 		return -EINVAL;
 	}
 
+
+
 	if (elem_size == h_stride &&
 	    elem_size == sys_stride) {
 		elem_size *= count;
@@ -3032,19 +3052,20 @@ static ssize_t _nvmap_do_rw_handle(struct nvmap_handle *h, int is_read,
 	}
 
 	while (count--) {
-		size_t ret;
-		if (is_read)
-			_nvmap_do_cache_maint(h, h_offs, h_offs + elem_size,
-					NVMEM_CACHE_OP_INV, false);
-		ret = _nvmap_do_one_rw_handle(h, is_read,
+		//size_t ret = _nvmap_do_one_rw_handle(h, is_read,
+                size_t ret;
+                if (is_read)
+                        _nvmap_do_cache_maint(h, h_offs, h_offs + elem_size,
+                                        NVMEM_CACHE_OP_INV, false);
+                ret = _nvmap_do_one_rw_handle(h, is_read,
 			is_user, h_offs, sys_addr, elem_size, &addr);
 		if (ret < 0) {
 			if (!bytes_copied) bytes_copied = ret;
 			break;
 		}
-		if (!is_read)
-			_nvmap_do_cache_maint(h, h_offs, h_offs + ret,
-					NVMEM_CACHE_OP_WB, false);
+                if (!is_read)
+                        _nvmap_do_cache_maint(h, h_offs, h_offs + ret,
+                                        NVMEM_CACHE_OP_WB, false);
 		bytes_copied += ret;
 		if (ret < elem_size) break;
 		sys_addr += sys_stride;
@@ -3575,6 +3596,7 @@ void NvRmMemPinMult(NvRmMemHandle *hMems, NvU32 *addrs, NvU32 Count)
 		*addrs=0;
 		return;
 	}
+
 
 	do {
 		ret = _nvmap_handle_pin_fast(Count, h);

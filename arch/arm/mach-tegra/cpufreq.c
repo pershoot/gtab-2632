@@ -58,6 +58,16 @@ static DEFINE_MUTEX(init_mutex);
 #ifdef CONFIG_HOTPLUG_CPU
 static int disable_hotplug = 0;
 #endif
+static void tegra_cpufreq_hotplug(NvRmPmRequest req);
+
+void pmu_tegra_cpufreq_hotplug(bool onoff)
+{
+	if(onoff == 1) {
+		tegra_cpufreq_hotplug(NvRmPmRequest_CpuOnFlag);
+	} else {
+		tegra_cpufreq_hotplug(NvRmPmRequest_CpuOffFlag);
+	}
+}
 
 static void tegra_cpufreq_hotplug(NvRmPmRequest req)
 {
