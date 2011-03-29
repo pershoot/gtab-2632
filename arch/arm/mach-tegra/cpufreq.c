@@ -69,6 +69,24 @@ void pmu_tegra_cpufreq_hotplug(bool onoff)
 	}
 }
 
+/*
+ * Frequency table index must be sequential starting at 0 and frequencies
+ * must be ascending.
+ */
+static struct cpufreq_frequency_table freq_table[] = {
+	{ 0, 216000 },
+	{ 1, 312000 },
+	{ 2, 456000 },
+	{ 3, 608000 },
+	{ 4, 760000 },
+	{ 5, 816000 },
+	{ 6, 912000 },
+	{ 7, 1000000 },
+	{ 8, 1200000 },
+	{ 9, 1400000 },
+	{ 10, CPUFREQ_TABLE_END },
+};
+
 static void tegra_cpufreq_hotplug(NvRmPmRequest req)
 {
 	int rc = 0;
@@ -182,9 +200,7 @@ static int tegra_cpufreq_dfsd(void *arg)
 
 static int tegra_verify_speed(struct cpufreq_policy *policy)
 {
-	cpufreq_verify_within_limits(policy, policy->cpuinfo.min_freq,
-		policy->cpuinfo.max_freq);
-	return 0;
+	return cpufreq_frequency_table_verify(policy, freq_table);
 }
 
 static unsigned int tegra_get_speed(unsigned int cpu)
