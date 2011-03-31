@@ -718,7 +718,8 @@ int usbnet_stop (struct net_device *net)
 	usb_autopm_put_interface(dev->intf);
 #else
 	if (info->manage_power)
-		info->manage_power(dev, 0);	else
+		info->manage_power(dev, 0);
+	else
 		usb_autopm_put_interface(dev->intf);
 #endif
 
@@ -972,6 +973,9 @@ fail_pipe:
  			goto fail_halt;
 #endif
 		status = usb_clear_halt (dev->udev, dev->in);
+#if defined(CONFIG_ERICSSON_F3307_ENABLE)
+		usb_autopm_put_interface(dev->intf);
+#endif
 		if (status < 0
 				&& status != -EPIPE
 				&& status != -ESHUTDOWN) {
