@@ -1944,7 +1944,7 @@ static int power_fs_sync(void)
 extern void F4_Deal(unsigned int wake_up_flag);
 extern void pmu_tegra_cpufreq_hotplug(bool onoff);
 extern unsigned int WAKE_UP_FROM_LP1_FLAG;
-struct timeval last_receive_time;       //Add for double click in 500ms; 2011-03-01
+struct timeval last_receive_time;       //Add for double click in 250ms; 2011-03-01
 extern unsigned int PM_SCREEN_IS_OFF;
 
 /* Interrupt function for Power Button*/
