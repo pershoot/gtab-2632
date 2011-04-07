@@ -626,7 +626,6 @@ int tegra_pm_notifier(struct notifier_block *nb,
 #ifndef CONFIG_HAS_EARLYSUSPEND
         notify_daemon(STRING_PM_DISPLAY_OFF);
 #endif
-        WAKE_UP_FROM_LP1_FLAG = 1;
         notify_daemon(STRING_PM_SUSPEND_PREPARE);
         NvRmPrivDvsStop();
         break;
