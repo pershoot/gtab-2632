@@ -159,7 +159,7 @@ static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 
 	pr_debug("alarm_sec = %u\n", alarm_sec);
 
-	if(!NvOdmPmuWriteAlarm(hPmu, alarm_sec-now))
+	if(!NvOdmPmuWriteAlarm(hPmu, alarm_sec))
 		return -EINVAL;
 
 #if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
