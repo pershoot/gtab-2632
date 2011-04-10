@@ -25,7 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
-//#include <linux/earlysuspend.h>
+#include <linux/earlysuspend.h>
 #include <linux/freezer.h>
 
 #include <nvodm_services.h>
@@ -73,7 +73,7 @@ struct tegra_touch_driver_data
 	NvU32			MaxY;
 	NvU32			MinY;
 	int			shutdown;
-	//struct early_suspend	early_suspend;
+	struct early_suspend	early_suspend;
 	bool pen_state;
 	NvU32	Version;
 	NvU32	CalibrationData;
@@ -278,8 +278,7 @@ extern NvU32 NvOdmTouchDriverIndex(NvU32* pindex);
 static int tegra_touch_thread(void *pdata);
 
 
-//#ifdef CONFIG_HAS_EARLYSUSPEND
-#if 0
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void tegra_touch_early_suspend(struct early_suspend *es)
 {
 	struct tegra_touch_driver_data *touch;
@@ -530,8 +529,7 @@ static int __init tegra_touch_probe_ak4183(struct platform_device *pdev)
 		goto err_input_register_device_failed;
 	}
 
-//#ifdef CONFIG_HAS_EARLYSUSPEND
-#if 0
+#ifdef CONFIG_HAS_EARLYSUSPEND
         touch->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
         touch->early_suspend.suspend = tegra_touch_early_suspend;
         touch->early_suspend.resume = tegra_touch_late_resume;
@@ -874,8 +872,7 @@ static int __init tegra_touch_probe_at168(struct platform_device *pdev)
 	}
 //*************************************************//
 
-//#ifdef CONFIG_HAS_EARLYSUSPEND
-#if 0
+#ifdef CONFIG_HAS_EARLYSUSPEND
        touch->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
        touch->early_suspend.suspend = tegra_touch_early_suspend;
        touch->early_suspend.resume = tegra_touch_late_resume;
@@ -1127,8 +1124,7 @@ static int tegra_touch_remove(struct platform_device *pdev)
 {
 	struct tegra_touch_driver_data *touch = platform_get_drvdata(pdev);
 
-//#ifdef CONFIG_HAS_EARLYSUSPEND
-#if 0
+#ifdef CONFIG_HAS_EARLYSUSPEND
         unregister_early_suspend(&touch->early_suspend);
 #endif
 #if defined(CONFIG_TOUCHSCREEN_TEGRA_ODM_AT168)
