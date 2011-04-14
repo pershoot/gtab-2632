@@ -60,11 +60,11 @@
 
 // Voltage list for corresponding clocks
 NvU32 FakeShmooVoltages[] = {
-	800,
-	800,
+	825,
+	825,
 	875,
-	950,
-	1025,
+	925,
+	1000,
 	1100,
 	MAX_VOLTAGE // New Entry
 };
