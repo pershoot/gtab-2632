@@ -172,7 +172,15 @@ static int tegra_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *wkalrm)
 #if SYNC_EXTERNAL_RTC_TO_INTERNAL_RTC
         return internal_tegra_rtc_set_alarm(wkalrm);
 #else
-	return 0;
+        pr_info("%s():enter.\n", __func__);
+
+        /* Alarm set */
+        events |= RTC_IRQF | RTC_AF;
+
+        if (rtc)
+                rtc_update_irq(rtc, 1, events);
+
+        return NV_TRUE;
 #endif
 }
 
