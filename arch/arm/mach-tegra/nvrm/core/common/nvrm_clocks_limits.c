@@ -61,10 +61,10 @@
 // Voltage list for corresponding clocks
 NvU32 FakeShmooVoltages[] = {
 #if defined(CONFIG_ZPAD_T2_NEWBL)
-	825,
+	850,
 #endif
-	825,
-	825,
+	850,
+	850,
 	875,
 	925,
 	1000,
