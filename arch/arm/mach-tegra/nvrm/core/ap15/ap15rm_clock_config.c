@@ -46,6 +46,8 @@
 #include "nvodm_query_memc.h"
 #include "ap20/ap20rm_clocks.h"
 
+#define USE_FAKE_SHMOO
+
 // TODO: CAR and EMC access macros for time critical access
 
 /*****************************************************************************/
@@ -2147,7 +2149,11 @@ NvRmPrivAp15FastClockConfig(NvRmDeviceHandle hRmDevice)
     // Set PLLC and CPU clock to SoC maximum - can be done now, when core
     // voltage is guaranteed to be nominal, provided none of the display
     // heads is already using PLLC as pixel clock source.
+#ifdef USE_FAKE_SHMOO
+    CpuKHz = 1000000;
+#else
     CpuKHz = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz;
+#endif
     FreqKHz = NvRmPrivGetClockSourceFreq(NvRmClockSource_PllC0);
     if (CpuKHz != FreqKHz)
     {
