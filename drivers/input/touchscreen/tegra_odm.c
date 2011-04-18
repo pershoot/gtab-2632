@@ -689,7 +689,7 @@ InBurnBootloader:
 				case 0:
 					tegra_touch_fingers_dealwith(touch, coord, 0); //fingers = 0
 
-					msleep(TIME_READ_INTERVAL);
+					msleep(20);
 					break;
 				#endif
 				case 0:
@@ -712,7 +712,7 @@ HandleInterrupt:
 			{
 				//if(!touch->bSuspended){
 				tegra_touch_fingers_dealwith(touch, coord, 0); //fingers = 0
-				msleep(TIME_READ_INTERVAL);
+				msleep(30);
 				//}
 				bKeepReadingSamples = NV_FALSE;
 			}
