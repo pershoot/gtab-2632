@@ -57,8 +57,6 @@
 // Minimum core over CPU voltage margin (at SoC)
 #define NV_AP20_CORE_OVER_CPU_MV (120)
 
-#define USE_FAKE_SHMOO
-
 /*****************************************************************************/
 
 /*
@@ -1754,7 +1752,7 @@ NvRmPrivAp20FastClockConfig(NvRmDeviceHandle hRmDevice)
 
     // Set PLLX0 and CPU clock to SoC maximum (cpu voltage is guaranteed to
     // be nominal during initialization and resume as well)
-#ifdef USE_FAKE_SHMOO
+#if defined(CONFIG_USE_FAKE_SHMOO)
     CpuKHz = 1000000;
 #else
     CpuKHz = NvRmPrivGetSocClockLimits(NvRmModuleID_Cpu)->MaxKHz;

@@ -1504,6 +1504,13 @@ config CPU_FREQ_S3C24XX_DEBUGFS
 	help
 	  Export status information via debugfs.
 
+config USE_FAKE_SHMOO
+        bool "Use Fake Shmoo - Overclocking/Undervolting"
+        depends on CPU_FREQ
+        default n
+        help
+          This enables overclocking to 1.4GHZ and undervolting.
+
 endif
 
 source "drivers/cpuidle/Kconfig"
