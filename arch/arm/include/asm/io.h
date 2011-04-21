@@ -179,7 +179,6 @@ extern void _memset_io(volatile void __iomem *, int, size_t);
 					__raw_readl(__mem_pci(c))); __v; })
 #define readb_relaxed(addr) readb(addr)
 #define readw_relaxed(addr) readw(addr)
-#define readl_relaxed(addr) readl(addr)
 
 #define readsb(p,d,l)		__raw_readsb(__mem_pci(p),d,l)
 #define readsw(p,d,l)		__raw_readsw(__mem_pci(p),d,l)
@@ -190,6 +189,12 @@ extern void _memset_io(volatile void __iomem *, int, size_t);
 					cpu_to_le16(v),__mem_pci(c))
 #define writel(v,c)		__raw_writel((__force __u32) \
 					cpu_to_le32(v),__mem_pci(c))
+
+#define readl_relaxed(c) ({ u32 __v = le32_to_cpu((__force __le32) \
+					__raw_readl(__mem_pci(c))); __v; })
+
+#define writel_relaxed(v,c)     ((void)__raw_writel((__force u32) \
+					cpu_to_le32(v),__mem_pci(c)))
 
 #define writesb(p,d,l)		__raw_writesb(__mem_pci(p),d,l)
 #define writesw(p,d,l)		__raw_writesw(__mem_pci(p),d,l)
