@@ -647,6 +647,24 @@ static ssize_t show_scaling_setspeed(struct cpufreq_policy *policy, char *buf)
 	return policy->governor->show_setspeed(policy, buf);
 }
 
+static ssize_t show_scaling_available_frequencies(struct cpufreq_policy *policy, char *buf) 
+{
+#if defined(CONFIG_USE_FAKE_SHMOO)
+	int a=216000, b=312000, c=456000, d=608000, e=760000, f=816000, g=912000, h=1000000, i=1200000, j=1400000; 
+#else
+	int a=216000, b=312000, c=456000, d=608000, e=760000, f=816000, g=912000, h=1000000; 
+#endif
+	char *table = buf;
+
+#if defined(CONFIG_USE_FAKE_SHMOO)
+	table += sprintf(table, "%d %d %d %d %d %d %d %d %d %d\n", a, b, c, d, e, f, g, h, i, j);
+#else
+	table += sprintf(table, "%d %d %d %d %d %d %d %d\n", a, b, c, d, e, f, g, h);
+#endif
+
+	return table - buf;
+}
+
 #define define_one_ro(_name) \
 static struct freq_attr _name = \
 __ATTR(_name, 0444, show_##_name, NULL)
@@ -672,6 +690,7 @@ define_one_rw(scaling_min_freq);
 define_one_rw(scaling_max_freq);
 define_one_rw(scaling_governor);
 define_one_rw(scaling_setspeed);
+define_one_ro(scaling_available_frequencies);
 
 static struct attribute *default_attrs[] = {
 	&cpuinfo_min_freq.attr,
@@ -685,6 +704,7 @@ static struct attribute *default_attrs[] = {
 	&scaling_driver.attr,
 	&scaling_available_governors.attr,
 	&scaling_setspeed.attr,
+	&scaling_available_frequencies.attr,
 	NULL
 };
 
