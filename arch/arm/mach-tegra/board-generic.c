@@ -135,7 +135,7 @@ static struct platform_device tegra_android_device = {
 static struct usb_mass_storage_platform_data tegra_usb_fsg_platform = {
 	.vendor = "NVIDIA",
 	.product = "Tegra 2",
-	.nluns = 1,
+	.nluns = 3,
 	.bulk_size = 16384,
 };
 static struct platform_device tegra_usb_fsg_device = {
