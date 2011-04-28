@@ -750,7 +750,7 @@ static int __init tegra_touch_probe_at168(struct platform_device *pdev)
         pr_err("tegra_touch_probe: NvOdmTouchDeviceOpen failed\n");
         goto err_open_failed;
     }
-    touch->bPollingMode = NV_FALSE;
+    touch->bPollingMode = NV_TRUE;
 	touch->bIsSuspended = NV_FALSE;
     if (!NvOdmTouchEnableInterrupt(touch->hTouchDevice, touch->semaphore)) {
         err = -1;
