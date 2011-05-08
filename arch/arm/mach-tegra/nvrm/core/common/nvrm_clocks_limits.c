@@ -58,7 +58,7 @@
 
 // Voltage list for corresponding clocks
 NvU32 FakeShmooVoltages[] = {
-#if defined(CONFIG_ZPAD_T2_NEWBL)
+#if defined(CONFIG_NEWBL)
 	900,
 #endif
 	900,
@@ -70,7 +70,7 @@ NvU32 FakeShmooVoltages[] = {
 	MAX_VOLTAGE // New Entry
 };
 
-#if defined(CONFIG_ZPAD_T2_NEWBL)
+#if defined(CONFIG_NEWBL)
 NvU32 ClockTableLength = 8;
 #else
 NvU32 ClockTableLength = 7; // Original Value: 6
@@ -82,7 +82,7 @@ NvRmScaledClkLimits FakepScaledCpuLimits = {
 	32, // FakepScaledCpuLimits.MinKHz
 	// Clock table
 	{
-#if defined(CONFIG_ZPAD_T2_NEWBL)
+#if defined(CONFIG_NEWBL)
 		216000,
 #endif
 		312000,
