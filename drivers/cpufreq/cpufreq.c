@@ -571,8 +571,12 @@ static ssize_t show_scaling_available_governors(struct cpufreq_policy *policy,
 	struct cpufreq_governor *t;
 
 	if (!cpufreq_driver->target) {
-		i += sprintf(buf, "performance powersave");
-		goto out;
+		#if defined(CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE)
+			i += sprintf(buf, "performance powersave");
+		#else
+			i += sprintf(buf, " ");
+		#endif
+			goto out;
 	}
 
 	list_for_each_entry(t, &cpufreq_governor_list, governor_list) {
