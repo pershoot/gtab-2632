@@ -257,20 +257,20 @@ static void l2x0_shutdown(void)
 
 	local_irq_save(flags);
 
-	if (readl(l2x0_base + L2X0_CTRL) & 1) {
+	if (readl_relaxed(l2x0_base + L2X0_CTRL) & 1) {
 		int m;
 		/* lockdown all ways, all masters to prevent new line
 		 * allocation during maintenance */
 		for (m=0; m<8; m++) {
-			writel(0xffff, l2x0_base + L2X0_LOCKDOWN_WAY_D + (m*8));
-			writel(0xffff, l2x0_base + L2X0_LOCKDOWN_WAY_I + (m*8));
+			writel_relaxed(0xffff, l2x0_base + L2X0_LOCKDOWN_WAY_D + (m*8));
+			writel_relaxed(0xffff, l2x0_base + L2X0_LOCKDOWN_WAY_I + (m*8));
 		}
 		l2x0_flush_all();
-		writel(0, l2x0_base + L2X0_CTRL);
+		writel_relaxed(0, l2x0_base + L2X0_CTRL);
 		/* unlock cache ways */
 		for (m=0; m<8; m++) {
-			writel(0, l2x0_base + L2X0_LOCKDOWN_WAY_D + (m*8));
-			writel(0, l2x0_base + L2X0_LOCKDOWN_WAY_I + (m*8));
+			writel_relaxed(0, l2x0_base + L2X0_LOCKDOWN_WAY_D + (m*8));
+			writel_relaxed(0, l2x0_base + L2X0_LOCKDOWN_WAY_I + (m*8));
 		}
 	}
 
