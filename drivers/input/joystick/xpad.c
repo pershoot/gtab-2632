@@ -152,27 +152,28 @@ static const struct xpad_device {
 
 /* buttons shared with xbox and xbox360 */
 static const signed short xpad_common_btn[] = {
-	BTN_A, BTN_B, BTN_X, BTN_Y,			/* "analog" buttons */
-	BTN_START, BTN_BACK, BTN_THUMBL, BTN_THUMBR,	/* start/back/sticks */
+	KEY_A, KEY_B, KEY_X, KEY_Y,			/* "analog" buttons */
+	KEY_ENTER, KEY_ESC, KEY_L, KEY_R,	/* start/back/sticks */
 	-1						/* terminating entry */
 };
 
 /* original xbox controllers only */
 static const signed short xpad_btn[] = {
-	BTN_C, BTN_Z,		/* "analog" buttons */
+	KEY_C, KEY_Z,		/* "analog" buttons */
 	-1			/* terminating entry */
 };
 
 /* only used if MAP_DPAD_TO_BUTTONS */
 static const signed short xpad_btn_pad[] = {
-	BTN_LEFT, BTN_RIGHT,		/* d-pad left, right */
-	BTN_0, BTN_1,			/* d-pad up, down (XXX names??) */
+	KEY_LEFT, KEY_RIGHT,		/* d-pad left, right */
+	KEY_UP, KEY_DOWN,		/* d-pad up, down (XXX names??) */
 	-1				/* terminating entry */
 };
 
 static const signed short xpad360_btn[] = {  /* buttons for x360 controller */
-	BTN_TL, BTN_TR,		/* Button LB/RB */
-	BTN_MODE,		/* The big X button */
+	KEY_T, KEY_S,		/* Button LB/RB */
+	KEY_O, KEY_P,
+	KEY_HOME,		/* The big X button */
 	-1
 };
 
@@ -222,6 +223,8 @@ struct usb_xpad {
 	struct usb_device *udev;	/* usb device */
 
 	int pad_present;
+
+	u8 trigger_down; 
 
 	struct urb *irq_in;		/* urb for interrupt in report */
 	unsigned char *idata;		/* input data */
@@ -324,36 +327,30 @@ static void xpad360_process_packet(struct usb_xpad *xpad,
 {
 	struct input_dev *dev = xpad->dev;
 
-	/* digital pad */
-	if (xpad->dpad_mapping == MAP_DPAD_TO_AXES) {
-		input_report_abs(dev, ABS_HAT0X,
-				 !!(data[2] & 0x08) - !!(data[2] & 0x04));
-		input_report_abs(dev, ABS_HAT0Y,
-				 !!(data[2] & 0x02) - !!(data[2] & 0x01));
-	} else if (xpad->dpad_mapping == MAP_DPAD_TO_BUTTONS) {
-		/* dpad as buttons (right, left, down, up) */
-		input_report_key(dev, BTN_LEFT, data[2] & 0x04);
-		input_report_key(dev, BTN_RIGHT, data[2] & 0x08);
-		input_report_key(dev, BTN_0, data[2] & 0x01);	/* up */
-		input_report_key(dev, BTN_1, data[2] & 0x02);	/* down */
-	}
+
+	/* dpad as buttons (right, left, down, up) */
+	input_report_key(dev, KEY_LEFT, data[2] & 0x04);
+	input_report_key(dev, KEY_RIGHT, data[2] & 0x08);
+	input_report_key(dev, KEY_UP, data[2] & 0x01);	/* up */
+	input_report_key(dev, KEY_DOWN, data[2] & 0x02);	/* down */
+
 
 	/* start/back buttons */
-	input_report_key(dev, BTN_START,  data[2] & 0x10);
-	input_report_key(dev, BTN_BACK,   data[2] & 0x20);
+	input_report_key(dev, KEY_ENTER,  data[2] & 0x10);
+	input_report_key(dev, KEY_ESC,   data[2] & 0x20);
 
 	/* stick press left/right */
-	input_report_key(dev, BTN_THUMBL, data[2] & 0x40);
-	input_report_key(dev, BTN_THUMBR, data[2] & 0x80);
+	input_report_key(dev, KEY_L, data[2] & 0x40);
+	input_report_key(dev, KEY_R, data[2] & 0x80);
 
 	/* buttons A,B,X,Y,TL,TR and MODE */
-	input_report_key(dev, BTN_A,	data[3] & 0x10);
-	input_report_key(dev, BTN_B,	data[3] & 0x20);
-	input_report_key(dev, BTN_X,	data[3] & 0x40);
-	input_report_key(dev, BTN_Y,	data[3] & 0x80);
-	input_report_key(dev, BTN_TL,	data[3] & 0x01);
-	input_report_key(dev, BTN_TR,	data[3] & 0x02);
-	input_report_key(dev, BTN_MODE,	data[3] & 0x04);
+	input_report_key(dev, KEY_A,	data[3] & 0x10);
+	input_report_key(dev, KEY_B,	data[3] & 0x20);
+	input_report_key(dev, KEY_X,	data[3] & 0x40);
+	input_report_key(dev, KEY_Y,	data[3] & 0x80);
+	input_report_key(dev, KEY_T,	data[3] & 0x01);
+	input_report_key(dev, KEY_S,	data[3] & 0x02);
+	input_report_key(dev, KEY_HOME,	data[3] & 0x04);
 
 	/* left stick */
 	input_report_abs(dev, ABS_X,
@@ -368,8 +365,23 @@ static void xpad360_process_packet(struct usb_xpad *xpad,
 			 ~(__s16) le16_to_cpup((__le16 *)(data + 12)));
 
 	/* triggers left/right */
-	input_report_abs(dev, ABS_Z, data[4]);
-	input_report_abs(dev, ABS_RZ, data[5]);
+	if (data[4] > 0 && (xpad->trigger_down & 0x01) == 0) {
+		input_report_key(dev, KEY_O, 1);
+		xpad->trigger_down |= 0x01;
+	} 
+	if (data[4] == 0) {
+		input_report_key(dev, KEY_O, 0);
+		xpad->trigger_down &= 0xFE;
+	}
+
+	if (data[5] > 0 && (xpad->trigger_down & 0x02) == 0) {
+		input_report_key(dev, KEY_P, 1);
+		xpad->trigger_down |= 0x02;
+	}
+	if (data[5] == 0) {
+		input_report_key(dev, KEY_P, 0);
+		xpad->trigger_down &= 0xFD;
+	}
 
 	input_sync(dev);
 }
@@ -787,14 +799,14 @@ static int xpad_probe(struct usb_interface *intf, const struct usb_device_id *id
 	else
 		for (i = 0; xpad_btn[i] >= 0; i++)
 			set_bit(xpad_btn[i], input_dev->keybit);
-	if (xpad->dpad_mapping == MAP_DPAD_TO_BUTTONS)
+	if (xpad->dpad_mapping == MAP_DPAD_TO_BUTTONS || xpad->dpad_mapping == MAP_DPAD_TO_AXES)
 		for (i = 0; xpad_btn_pad[i] >= 0; i++)
 			set_bit(xpad_btn_pad[i], input_dev->keybit);
 
 	/* set up axes */
 	for (i = 0; xpad_abs[i] >= 0; i++)
 		xpad_set_up_abs(input_dev, xpad_abs[i]);
-	if (xpad->dpad_mapping == MAP_DPAD_TO_AXES)
+	if (0) //(xpad->dpad_mapping == MAP_DPAD_TO_AXES)
 		for (i = 0; xpad_abs_pad[i] >= 0; i++)
 		    xpad_set_up_abs(input_dev, xpad_abs_pad[i]);
 
@@ -930,3 +942,4 @@ module_exit(usb_xpad_exit);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
+
