@@ -62,11 +62,6 @@ static char *tegra_android_functions_ums_adb[] = {
 #endif
 };
 
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-static char *usb_functions_accessory[] = { "accessory" };
-static char *usb_functions_accessory_adb[] = { "accessory", "adb" };
-#endif
-
 static char *tegra_android_functions_rndis[] = {
 #ifdef CONFIG_USB_ANDROID_RNDIS
 	"rndis",
@@ -81,6 +76,18 @@ static char *tegra_android_functions_rndis_adb[] = {
 	"adb",
 #endif
 };
+
+#ifdef CONFIG_USB_ANDROID_ACCESSORY
+static char *tegra_android_functions_accessory[] = {
+	"accessory",
+};
+static char *tegra_android_functions_accessory_adb[] = {
+	"accessory",
+#ifdef CONFIG_USB_ANDROID_ADB
+	"adb",
+#endif
+};
+#endif
 
 static char *tegra_android_functions_all[] = {
 #ifdef CONFIG_USB_ANDROID_RNDIS
@@ -119,17 +126,16 @@ static struct android_usb_product tegra_android_products[] = {
 		.functions = tegra_android_functions_rndis_adb,
 	},
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
-   	{
-        	.vendor_id  = USB_ACCESSORY_VENDOR_ID,
-        	.product_id  = USB_ACCESSORY_PRODUCT_ID,
-        	.num_functions  = ARRAY_SIZE(usb_functions_accessory),
-        	.functions  = usb_functions_accessory,
-   	},
-   	{	.vendor_id  = USB_ACCESSORY_VENDOR_ID,
-        	.product_id  = USB_ACCESSORY_ADB_PRODUCT_ID,
-        	.num_functions  = ARRAY_SIZE(usb_functions_accessory_adb),
-        	.functions  = usb_functions_accessory_adb,
-   	},
+	[4] = {
+		.product_id = 0x7104,
+		.num_functions = ARRAY_SIZE(tegra_android_functions_accessory),
+		.functions = tegra_android_functions_accessory,
+	},
+	[5] = {
+		.product_id = 0x7105,
+		.num_functions = ARRAY_SIZE(tegra_android_functions_accessory_adb),
+		.functions = tegra_android_functions_accessory_adb,
+	},
 #endif
 };
 
