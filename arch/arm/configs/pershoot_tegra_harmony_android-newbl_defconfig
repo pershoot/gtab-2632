@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.41
-# Tue May 31 16:16:00 2011
+# Fri Jun  3 00:17:01 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -146,6 +146,7 @@ CONFIG_BLOCK=y
 CONFIG_LBDAF=y
 CONFIG_BLK_DEV_BSG=y
 CONFIG_BLK_DEV_INTEGRITY=y
+# CONFIG_BLK_CGROUP is not set
 
 #
 # IO Schedulers
