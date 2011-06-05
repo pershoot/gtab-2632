@@ -3681,6 +3681,90 @@ NvRmDfsSetLowVoltageThreshold(
     NvRmPrivUnlockSharedPll();
 }
 
+NvError
+NvRmDvsGetCpuVoltageThresholds(
+    NvRmDeviceHandle hRmDeviceHandle,
+    NvRmMilliVolts* LowMv,
+    NvRmMilliVolts* NominalMv)
+{
+    NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+
+    NV_ASSERT(hRmDeviceHandle);
+
+    if (NvRmPrivIsCpuRailDedicated(hRmDeviceHandle)) {
+
+        NvRmPrivLockSharedPll();
+        *LowMv = pDvs->MinCpuMv;
+        *NominalMv = pDvs->NominalCpuMv;
+        NvRmPrivUnlockSharedPll();
+
+        return NvSuccess;
+    }
+
+    return NvError_NotSupported;
+}
+
+NvError
+NvRmDvsSetCpuVoltageThresholds(
+    NvRmDeviceHandle hRmDeviceHandle,
+    NvRmMilliVolts LowMv,
+    NvRmMilliVolts NominalMv)
+{
+    NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+    NvRmPmuVddRailCapabilities cap;
+
+    NV_ASSERT(hRmDeviceHandle);
+
+    if (NvRmPrivIsCpuRailDedicated(hRmDeviceHandle)) {
+        NvRmPmuGetCapabilities(hRmDeviceHandle, pDvs->CpuRailAddress, &cap);
+        if (cap.RmProtected == NV_TRUE)
+            return NvError_NotSupported;
+
+        if (NominalMv > cap.MaxMilliVolts)
+            NominalMv = cap.MaxMilliVolts;
+        else if (NominalMv < cap.MinMilliVolts)
+            NominalMv = cap.MinMilliVolts;
+
+        if (LowMv > cap.MaxMilliVolts)
+            LowMv = cap.MaxMilliVolts;
+        else if (LowMv < cap.MinMilliVolts)
+            LowMv = cap.MinMilliVolts;
+
+        if (LowMv > NominalMv)
+            LowMv = NominalMv;
+
+        NvRmPrivLockSharedPll();
+        pDvs->MinCpuMv = LowMv;
+        pDvs->LowCornerCpuMv = LowMv;
+        pDvs->NominalCpuMv = NominalMv;
+        pDvs->UpdateFlag = NV_TRUE;
+        NvRmPrivUnlockSharedPll();
+
+        return NvSuccess;
+    }
+
+    return NvError_NotSupported;
+}
+
+NvError
+NvRmDvsSetCpuVoltageThresholdsToLimits(NvRmDeviceHandle hRmDeviceHandle)
+{
+    return NvRmDvsSetCpuVoltageThresholds(hRmDeviceHandle, 0,
+                                                        NvRmVoltsUnspecified);
+}
+
+void
+NvRmDvsForceUpdate(NvRmDeviceHandle hRmDeviceHandle)
+{
+    NvRmDvs* pDvs = &s_Dfs.VoltageScaler;
+
+    NV_ASSERT(hRmDeviceHandle);
+
+    NvRmPrivLockSharedPll();
+    pDvs->UpdateFlag = NV_TRUE;
+    NvRmPrivUnlockSharedPll();
+}
+
 /*****************************************************************************/
 // DTT PUBLIC INTERFACES
 /*****************************************************************************/
