@@ -958,7 +958,7 @@ static NvError NvRmBootArgChipShmooGet(
         NV_ASSERT((size * sizeof(*s_CpuShmoo.ShmooVoltages) ==
               BootArgSh.CpuShmooVoltagesListSize) && (size > 1));
 #if defined(CONFIG_USE_FAKE_SHMOO)
-	s_CpuShmoo.ShmooVmaxIndex = ClockTableLength;
+	s_CpuShmoo.ShmooVmaxIndex = ClockTableLength - 1;
 #else
         s_CpuShmoo.ShmooVmaxIndex = size - 1;
 #endif
