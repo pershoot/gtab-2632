@@ -53,6 +53,7 @@
 #define KTHREAD_IRQ_PRIO (MAX_RT_PRIO>>1)
 
 #define DEFAULT_CPU_NOMINAL_MV (1200)
+#define POLICY_COEFF (25)
 
 #define define_ro_attr(_name)						\
 	static ssize_t show_##_name(struct cpufreq_policy *policy,	\
@@ -744,12 +745,39 @@ static unsigned int tegra_get_speed(unsigned int cpu)
 
 static int tegra_set_policy(struct cpufreq_policy *pol)
 {
-	NvError e = NvRmDfsSetCpuEnvelope(rm_cpufreq, pol->min, pol->max);
+	NvError e;
+	unsigned int min, max, margin;
 
+	margin = POLICY_COEFF * (pol->max - pol->min) / 100;
+
+	switch (pol->policy) {
+	case CPUFREQ_POLICY_POWERSAVE:
+		min = pol->min;
+		max = pol->min + margin;
+		break;
+	case CPUFREQ_POLICY_PERFORMANCE:
+		min = pol->max - margin;
+		max = pol->max;
+		break;
+	case CPUFREQ_POLICY_NULL:
+	default:
+		min = pol->min;
+		max = pol->max;
+		break;
+	}
+
+	enforce_freq_table_bounds(pol);
+
+	pr_debug("%s: setting policy: %u, min: %u, max: %u\n",
+					__func__, pol->policy, min, max);
+
+	e = NvRmDfsSetCpuEnvelope(rm_cpufreq, min, max);
 	if (e) {
 		pr_err("%s: error 0x%08x \n", __func__, e);
 		return -EINVAL;
 	}
+	NvRmDvsForceUpdate(rm_cpufreq);
+
 	return 0;
 }
 
