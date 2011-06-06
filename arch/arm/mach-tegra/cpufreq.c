@@ -49,6 +49,7 @@
 
 #include "nvrm/core/common/nvrm_clocks_limits_private.h"
 #include "nvrm/core/common/nvrm_power_dfs.h"
+#include "nvrm/core/common/nvrm_chipid.h"
 
 #define KTHREAD_IRQ_PRIO (MAX_RT_PRIO>>1)
 
@@ -894,6 +895,15 @@ static int tegra_cpufreq_driver_init(struct cpufreq_policy *pol)
 	pol->cpuinfo.min_freq = usage.MinKHz;
 	pol->cpuinfo.max_freq = usage.MaxKHz;
 	pol->cpuinfo.transition_latency = 0;
+
+	switch (NvRmPrivGetChipId(rm_cpufreq)->Id) {
+	case 0x20:
+		// cpu frequencies are synchronized
+		cpumask_copy(pol->cpus, cpu_possible_mask);
+		break;
+	default:
+		break;
+	}
 
 	return 0;
 }
