@@ -785,6 +785,23 @@ static struct kobj_type ktype_cpufreq = {
 	.release	= cpufreq_sysfs_release,
 };
 
+#ifdef CONFIG_SMP
+/*
+ * Checks to see if a cpu is managed by another cpu.
+ *
+ * @cpu: id of the cpu to check
+ * @pol: policy associated with the cpu
+ *
+ * Returns the id of the managing cpu or -1 if not managed.
+ */
+static int cpufreq_check_managed(int cpu, struct cpufreq_policy *pol)
+{
+	int pcpu = per_cpu(policy_cpu, cpu);
+	return (cpumask_weight(pol->cpus) > 1 &&
+		cpumask_test_cpu(cpu, pol->cpus) && cpu != pcpu) ? pcpu : -1;
+}
+#endif // CONFIG_SMP
+
 /*
  * Returns:
  *   Negative: Failure
@@ -994,7 +1011,15 @@ static int cpufreq_add_dev(struct sys_device *sys_dev)
 	 * CPU because it is in the same boat. */
 	policy = cpufreq_cpu_get(cpu);
 	if (unlikely(policy)) {
-		cpufreq_cpu_put(policy);
+		ret = sysfs_create_link_nowarn(&sys_dev->kobj,
+						&policy->kobj, "cpufreq");
+		if (ret) {
+			cpufreq_cpu_put(policy);
+		} else {
+			spin_lock_irqsave(&cpufreq_driver_lock, flags);
+			cpumask_set_cpu(cpu, policy->cpus);
+			spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
+		}
 		cpufreq_debug_enable_ratelimit();
 		return 0;
 	}
@@ -1130,7 +1155,6 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 		unlock_policy_rwsem_write(cpu);
 		return -EINVAL;
 	}
-	per_cpu(cpufreq_cpu_data, cpu) = NULL;
 
 
 #ifdef CONFIG_SMP
@@ -1148,6 +1172,8 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 		return 0;
 	}
 #endif
+
+	per_cpu(cpufreq_cpu_data, cpu) = NULL;
 
 #ifdef CONFIG_SMP
 
@@ -1833,6 +1859,14 @@ int cpufreq_update_policy(unsigned int cpu)
 		ret = -EINVAL;
 		goto fail;
 	}
+
+#ifdef CONFIG_SMP
+	if (cpufreq_check_managed(cpu, data) >= 0) {
+		unlock_policy_rwsem_write(cpu);
+		ret = 0;
+		goto fail;
+	}
+#endif
 
 	dprintk("updating policy for CPU %u\n", cpu);
 	memcpy(&policy, data, sizeof(struct cpufreq_policy));
