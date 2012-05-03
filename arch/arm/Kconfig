@@ -1511,6 +1511,14 @@ config USE_FAKE_SHMOO
         help
           This enables overclocking to 1.4GHZ and undervolting.
 
+config TEGRA_CPU_FREQ_VC_ATTRS
+	bool "Enable voltage control attributes"
+	depends on ARCH_TEGRA_2x_SOC && CPU_FREQ
+	default y
+	help
+	  This enables access to CPU shmoo data and voltage settings allowing
+	  step voltage and step frequency attributes to be read and modified.
+
 endif
 
 source "drivers/cpuidle/Kconfig"

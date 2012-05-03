@@ -145,6 +145,10 @@ static NvRmSocShmoo s_SocShmoo;
 static NvRmCpuShmoo s_CpuShmoo;
 static void* s_pShmooData = NULL;
 
+#if defined(CONFIG_TEGRA_CPU_FREQ_VC_ATTRS)
+NvRmCpuShmoo *ExposedCpuShmoo = &s_CpuShmoo;
+#endif
+
 static NvError
 NvRmBootArgChipShmooGet(
     NvRmDeviceHandle hRmDevice,
@@ -958,7 +962,7 @@ static NvError NvRmBootArgChipShmooGet(
         NV_ASSERT((size * sizeof(*s_CpuShmoo.ShmooVoltages) ==
               BootArgSh.CpuShmooVoltagesListSize) && (size > 1));
 #if defined(CONFIG_USE_FAKE_SHMOO)
-	s_CpuShmoo.ShmooVmaxIndex = ClockTableLength;
+	s_CpuShmoo.ShmooVmaxIndex = ClockTableLength - 1;
 #else
         s_CpuShmoo.ShmooVmaxIndex = size - 1;
 #endif

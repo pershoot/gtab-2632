@@ -1302,6 +1302,64 @@ typedef struct NvRmDfsStarvationHintRec
     NvRmMilliVolts LowMv );
 
 /**
+ * Gets thresholds for the dedicated CPU rail.
+ *
+ * @param hRmDeviceHandle The RM device handle.
+ * @param LowMv Output pointer for low voltage threshold.
+ * @param NominalMv Output pointer for nominal voltage threshold.
+ *
+ * @retval NvSuccess if thresholds have been stored in output pointers.
+ * @retval NvError_NotSupported if there is no dedicated CPU rail.
+ */
+
+ NvError
+ NvRmDvsGetCpuVoltageThresholds(
+    NvRmDeviceHandle hRmDeviceHandle,
+    NvRmMilliVolts* LowMv,
+    NvRmMilliVolts* NominalMv );
+
+/**
+ * Sets thresholds for the dedicated CPU rail. The rail voltage is
+ *  clipped to within PMU capabilities.
+ *
+ * @param hRmDeviceHandle The RM device handle.
+ * @param LowMv Low voltage threshold for the targeted rail.
+ * @param NominalMv Nominal voltage threshold for targeted rail.
+ *
+ * @retval NvSuccess if thresholds have been set.
+ * @retval NvError_NotSupported if there is no dedicated CPU rail.
+ */
+
+ NvError
+ NvRmDvsSetCpuVoltageThresholds(
+    NvRmDeviceHandle hRmDeviceHandle,
+    NvRmMilliVolts LowMv,
+    NvRmMilliVolts NominalMv );
+
+/**
+ * Sets thresholds for the dedicate CPU rail to the PMU limits.
+ *
+ * @param hRmDeviceHandle The RM device handle.
+ *
+ * @retval NvSuccess if thresholds have been set.
+ * @retval NvError_NotSupported if there is no dedicated CPU rail.
+ */
+
+ NvError
+ NvRmDvsSetCpuVoltageThresholdsToLimits(
+    NvRmDeviceHandle hRmDeviceHandle );
+
+/**
+ * Forces the DVS to update voltages.
+ *
+ * @param hRmDeviceHandle The RM device handle.
+ */
+
+ void
+ NvRmDvsForceUpdate(
+    NvRmDeviceHandle hRmDeviceHandle );
+
+/**
  * Notifies RM Kernel about entering Suspend state.
  * 
  * @param hRmDeviceHandle The RM device handle.

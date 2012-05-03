@@ -53,6 +53,7 @@ static inline int cpufreq_unregister_notifier(struct notifier_block *nb,
  * two generic policies are available:
  */
 
+#define CPUFREQ_POLICY_NULL		(0)
 #define CPUFREQ_POLICY_POWERSAVE	(1)
 #define CPUFREQ_POLICY_PERFORMANCE	(2)
 
